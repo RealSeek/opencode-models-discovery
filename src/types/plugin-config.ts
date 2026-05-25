@@ -13,9 +13,14 @@ export interface PluginConfig {
   smartModelName?: boolean
 }
 
+export type ModelInfoFormat = 'litellm' | (string & {})
+
 export interface ProviderDiscoveryConfig {
   enabled?: boolean
   endpoint?: string
+  modelInfoEndpoint?: string
+  modelInfoFormat?: ModelInfoFormat
+  filterNonChat?: boolean
   models?: {
     includeRegex?: string[]
     excludeRegex?: string[]

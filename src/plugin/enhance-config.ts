@@ -1,6 +1,7 @@
 import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
-import { normalizeBaseURL, discoverModelsFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
+import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
+import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -32,6 +33,9 @@ export async function enhanceConfig(
       const p = providerConfig as any
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
+      const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint
+      const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
+      const filterNonChat = providerDiscoveryConfig.filterNonChat !== false
       const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
 
       if (!forceDiscoveryEnabled && !canDiscoverModels(p)) {
@@ -71,10 +75,29 @@ export async function enhanceConfig(
         continue
       }
 
+      let modelInfoEnricher: ModelInfoEnricher | undefined
+      if (modelInfoFormat && !isSupportedModelInfoFormat(modelInfoFormat)) {
+        logger.warn('Unsupported provider model info format', {
+          provider: providerName,
+          format: modelInfoFormat,
+        })
+      } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
+        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
+        if (modelInfoDiscovery.ok) {
+          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
+        } else {
+          logger.warn('Provider model info discovery failed', {
+            provider: providerName,
+            baseURL,
+            endpoint: modelInfoEndpoint,
+            format: modelInfoFormat,
+          })
+        }
+      }
+
       const existingModels = p.models || {}
       const discoveredModels: Record<string, any> = {}
       let chatModelsCount = 0
-      let embeddingModelsCount = 0
 
       const hasProviderModelRegexFilter = !!providerDiscoveryConfig.models?.includeRegex?.length || !!providerDiscoveryConfig.models?.excludeRegex?.length
       const providerModelRegexFilter = getProviderModelRegexFilter(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
@@ -91,7 +114,15 @@ export async function enhanceConfig(
             continue
           }
 
+          if (modelInfoEnricher?.shouldSkipModel(model.id)) {
+            continue
+          }
+
           const modelType = categorizeModel(model.id)
+          if (modelType === 'embedding') {
+            continue
+          }
+
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
@@ -102,19 +133,15 @@ export async function enhanceConfig(
             modelConfig.organizationOwner = owner
           }
 
-          if (modelType === 'embedding') {
-            embeddingModelsCount++
-            modelConfig.modalities = {
-              input: ["text"],
-              output: ["embedding"]
-            }
-          } else if (modelType === 'chat') {
+          if (modelType === 'chat') {
             chatModelsCount++
             modelConfig.modalities = {
               input: ["text", "image"],
               output: ["text"]
             }
           }
+
+          modelInfoEnricher?.applyModelInfo(modelConfig, model.id)
 
           discoveredModels[modelKey] = modelConfig
         }
@@ -131,10 +158,6 @@ export async function enhanceConfig(
           baseURL,
           models: discoveredModels
         })
-
-        if (chatModelsCount === 0 && embeddingModelsCount > 0) {
-          // Provider only has embedding models
-        }
       }
     }
 

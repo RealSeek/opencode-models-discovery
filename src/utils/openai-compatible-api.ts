@@ -7,6 +7,11 @@ export interface ModelsDiscoveryResult {
   models: OpenAIModel[]
 }
 
+export interface ModelInfoDiscoveryResult {
+  ok: boolean
+  data: unknown
+}
+
 export function normalizeBaseURL(baseURL: string): string {
   let normalized = baseURL.replace(/\/+$/, '')
   if (normalized.endsWith('/v1')) {
@@ -50,6 +55,39 @@ export async function discoverModelsFromProvider(
     }
   } catch {
     return { ok: false, models: [] }
+  }
+}
+
+export async function discoverModelInfoFromProvider(
+  baseURL: string,
+  apiKey?: string,
+  endpoint: string = "/v1/model/info"
+): Promise<ModelInfoDiscoveryResult> {
+  try {
+    const url = buildAPIURL(baseURL, endpoint)
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`
+    }
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      signal: AbortSignal.timeout(3000),
+    })
+
+    if (!response.ok) {
+      return { ok: false, data: undefined }
+    }
+
+    const data = await response.json()
+    return {
+      ok: true,
+      data,
+    }
+  } catch {
+    return { ok: false, data: undefined }
   }
 }
 

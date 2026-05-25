@@ -17,6 +17,8 @@ Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencod
 - **Auto-Injection**: Automatically adds unconfigured models into OpenCode provider config
 - **Provider Filtering**: Include or exclude specific providers from discovery
 - **Model Filtering**: Use regex rules to precisely control which discovered models are injected
+- **Model Metadata Enrichment**: Optionally reads provider-specific model metadata to populate context limits and reasoning variants
+- **Non-Chat Filtering**: Skips models reported as non-chat by provider metadata, such as embeddings or image generation
 - **Configurable Discovery**: Control discovery behavior with global and provider-level enable/disable switches
 - **Smart Model Formatting**: Optional human-friendly display names for discovered models
 - **Organization Owner Extraction**: Extracts and sets `organizationOwner` from model IDs when available
@@ -102,6 +104,9 @@ Each provider can override discovery behavior through `provider.<name>.options.m
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Override global discovery and provider filters for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info endpoint path. Metadata enrichment is disabled when omitted |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format used to parse and inject metadata. Currently supports `"litellm"` |
+| `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true`; set to `false` to keep all discovered models |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
 | `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Override global `smartModelName` for a single provider |
@@ -120,6 +125,59 @@ Priority rules:
 2. If a provider defines its own `modelsDiscovery.models` filters, those filters replace global `models.includeRegex/excludeRegex` for that provider
 3. If a provider does not define its own model filters, global `models.includeRegex/excludeRegex` are used
 4. `provider.<name>.options.modelsDiscovery.smartModelName` overrides global `smartModelName`
+
+#### Model Metadata Enrichment
+
+LiteLLM exposes a richer `/v1/model/info` endpoint in addition to the OpenAI-compatible `/v1/models` endpoint. Because this endpoint is not part of the generic OpenAI-compatible API contract, metadata enrichment is opt-in. Configure both `modelInfoEndpoint` and `modelInfoFormat` to enable it for a provider.
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM",
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "endpoint": "/v1/models",
+          "modelInfoEndpoint": "/v1/model/info",
+          "modelInfoFormat": "litellm"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+When model info is available, the plugin uses fields from each LiteLLM `model_info` object to populate OpenCode model configuration:
+
+- `max_input_tokens`, `max_output_tokens`, and `max_tokens` become `limit.context`, `limit.input`, and `limit.output`
+- `supports_reasoning` enables `reasoning`
+- `supports_*_reasoning_effort` and `supported_openai_params` create reasoning `variants`
+- By default, entries whose `model_info.mode` is not `chat` are skipped
+
+For providers with custom metadata paths or non-standard behavior:
+
+```json
+{
+  "provider": {
+    "custom": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:9000/v1",
+        "modelsDiscovery": {
+          "modelInfoEndpoint": "/custom/model-info",
+          "modelInfoFormat": "litellm",
+          "filterNonChat": false
+        }
+      }
+    }
+  }
+}
+```
 
 ```json
 {
