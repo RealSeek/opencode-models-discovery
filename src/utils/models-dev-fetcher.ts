@@ -65,6 +65,23 @@ export async function fetchModelsDevData(): Promise<Map<string, ModelsDevModel>>
   }
 }
 
+function calculatePrefixScore(modelA: string, modelB: string): number {
+  const partsA = modelA.split('-')
+  const partsB = modelB.split('-')
+  
+  const shorter = partsA.length <= partsB.length ? partsA : partsB
+  const longer = partsA.length <= partsB.length ? partsB : partsA
+  
+  for (let i = 0; i < shorter.length; i++) {
+    if (shorter[i] !== longer[i]) {
+      return 0
+    }
+  }
+  
+  const extraParts = longer.length - shorter.length
+  return Math.max(0, 100 - (extraParts * 10))
+}
+
 export function lookupModelsDevData(
   modelId: string,
   cache: Map<string, ModelsDevModel>
@@ -104,7 +121,21 @@ export function lookupModelsDevData(
     }
   }
   
-  return undefined
+  // Level 4: Prefix-based matching with score
+  let bestMatch: ModelsDevModel | undefined
+  let bestScore = 0
+  
+  for (const [key, value] of cache.entries()) {
+    const devModel = key.split('/').pop()!.toLowerCase()
+    const score = calculatePrefixScore(modelNameLower, devModel)
+    
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = value
+    }
+  }
+  
+  return bestMatch
 }
 
 export type { ModelsDevModel }
