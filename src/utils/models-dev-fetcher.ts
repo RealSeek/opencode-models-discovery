@@ -1,6 +1,36 @@
 interface ModelsDevModel {
   id: string
   name?: string
+  family?: string
+  attachment?: boolean
+  reasoning?: boolean
+  tool_call?: boolean
+  structured_output?: boolean
+  temperature?: boolean
+  knowledge?: string | null
+  release_date?: string
+  last_updated?: string
+  modalities?: {
+    input?: string[]
+    output?: string[]
+  }
+  open_weights?: boolean
+  weights?: Array<{
+    label: string
+    url: string
+  }> | null
+  benchmarks?: Array<{
+    name: string
+    score: number
+    metric: string
+    harness?: string
+    source: string
+  }> | null
+  pricing?: {
+    input?: number
+    output?: number
+    currency?: string
+  } | null
   limit?: {
     context?: number
     input?: number

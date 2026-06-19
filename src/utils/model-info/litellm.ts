@@ -94,20 +94,20 @@ function applyLiteLLMModelInfo(
       ? info.max_tokens
       : undefined
 
-  // Fallback to models.dev
-  if ((!hasUsableNumber(contextLimit) || !hasUsableNumber(outputLimit)) && modelsDevCache) {
-    const modelsDevData = lookupModelsDevData(modelConfig.id, modelsDevCache)
-    if (modelsDevData?.limit) {
-      if (!hasUsableNumber(contextLimit)) {
-        contextLimit = modelsDevData.limit.context || modelsDevData.limit.input
-      }
-      if (!hasUsableNumber(outputLimit)) {
-        outputLimit = modelsDevData.limit.output
-      }
+  let modelsDevData: ModelsDevModel | undefined
+  if (modelsDevCache) {
+    modelsDevData = lookupModelsDevData(modelConfig.id, modelsDevCache)
+  }
+
+  if ((!hasUsableNumber(contextLimit) || !hasUsableNumber(outputLimit)) && modelsDevData?.limit) {
+    if (!hasUsableNumber(contextLimit)) {
+      contextLimit = modelsDevData.limit.context || modelsDevData.limit.input
+    }
+    if (!hasUsableNumber(outputLimit)) {
+      outputLimit = modelsDevData.limit.output
     }
   }
 
-  // Final fallback to default
   contextLimit = hasUsableNumber(contextLimit) ? contextLimit : DEFAULT_CONTEXT
   outputLimit = hasUsableNumber(outputLimit) ? outputLimit : DEFAULT_OUTPUT
 
@@ -119,11 +119,55 @@ function applyLiteLLMModelInfo(
 
   if (info.supports_reasoning === true) {
     modelConfig.reasoning = true
+  } else if (modelsDevData?.reasoning !== undefined) {
+    modelConfig.reasoning = modelsDevData.reasoning
   }
 
   const variants = createReasoningVariants(info)
   if (variants) {
     modelConfig.variants = variants
+  }
+
+  if (modelsDevData) {
+    if (modelsDevData.family !== undefined) {
+      modelConfig.family = modelsDevData.family
+    }
+    if (modelsDevData.attachment !== undefined) {
+      modelConfig.attachment = modelsDevData.attachment
+    }
+    if (modelsDevData.tool_call !== undefined) {
+      modelConfig.tool_call = modelsDevData.tool_call
+    }
+    if (modelsDevData.structured_output !== undefined) {
+      modelConfig.structured_output = modelsDevData.structured_output
+    }
+    if (modelsDevData.temperature !== undefined) {
+      modelConfig.temperature = modelsDevData.temperature
+    }
+    if (modelsDevData.knowledge !== undefined && modelsDevData.knowledge !== null) {
+      modelConfig.knowledge = modelsDevData.knowledge
+    }
+    if (modelsDevData.release_date !== undefined) {
+      modelConfig.release_date = modelsDevData.release_date
+    }
+    if (modelsDevData.last_updated !== undefined) {
+      modelConfig.last_updated = modelsDevData.last_updated
+    }
+    if (modelsDevData.modalities !== undefined) {
+      modelConfig.modalities = modelsDevData.modalities
+    }
+    if (modelsDevData.open_weights !== undefined) {
+      modelConfig.open_weights = modelsDevData.open_weights
+    }
+    if (modelsDevData.weights !== undefined && modelsDevData.weights !== null) {
+      modelConfig.weights = modelsDevData.weights
+    }
+    if (modelsDevData.benchmarks !== undefined && modelsDevData.benchmarks !== null) {
+      modelConfig.benchmarks = modelsDevData.benchmarks
+    }
+    if (modelsDevData.pricing !== undefined && modelsDevData.pricing !== null) {
+      modelConfig.pricing = modelsDevData.pricing
+    }
   }
 }
 
