@@ -126,3 +126,5 @@ MIT
 ## Disclaimer
 
 This project is not built by the OpenCode team and is not affiliated with OpenCode in any way.
+
+This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/). Optional models.dev metadata enrichment uses the public models.dev index only when explicitly configured by the user.

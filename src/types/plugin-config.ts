@@ -13,7 +13,7 @@ export interface PluginConfig {
   smartModelName?: boolean
 }
 
-export type ModelInfoFormat = 'litellm' | (string & {})
+export type ModelInfoFormat = 'litellm' | 'models.dev' | (string & {})
 
 export interface ProviderDiscoveryConfig {
   enabled?: boolean

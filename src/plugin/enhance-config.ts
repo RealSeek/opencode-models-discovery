@@ -6,6 +6,7 @@ import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
+import { fetchModelsDevData } from '../utils/models-dev-fetcher'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { OpenAIModel } from '../types'
@@ -231,6 +232,13 @@ export async function enhanceConfig(
         logger.warn('Unsupported provider model info format', {
           provider: providerName,
           format: modelInfoFormat,
+        })
+      } else if (modelInfoFormat === 'models.dev') {
+        const modelsDevCache = await fetchModelsDevData()
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
+        logger.info('Loaded models.dev data', {
+          provider: providerName,
+          count: modelsDevCache.size,
         })
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)

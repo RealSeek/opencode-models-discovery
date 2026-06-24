@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { promises as fs } from 'node:fs'
 import { ModelDiscoveryPlugin } from '../src/index.ts'
+import { modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -19,6 +20,7 @@ describe('ModelDiscovery Plugin', () => {
 
   beforeEach(async () => {
     mockFetch.mockClear()
+    modelsDevTestUtils.resetCache()
     delete process.env.OPENCODE_AUTH_CONTENT
     delete process.env.OPENCODE
     delete process.env.OPENCODE_PID
@@ -150,7 +152,12 @@ describe('ModelDiscovery Plugin', () => {
           ollama: {
             npm: '@ai-sdk/openai-compatible',
             name: 'Ollama',
-            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            options: { 
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: {
+                enabled: true
+              }
+            },
             models: {}
           }
         }
@@ -622,6 +629,124 @@ describe('ModelDiscovery Plugin', () => {
       }))
       expect(config.provider.litellm.models['text-embedding-3-small']).toBeUndefined()
       expect(config.provider.litellm.models['dall-e-3']).toBeUndefined()
+    })
+
+    it('should enrich models from models.dev when explicitly configured as model info format', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              { id: 'openai/gpt-4o', object: 'model', created: 1234567890, owned_by: 'openai' },
+              { id: 'unknown/local-model', object: 'model', created: 1234567890, owned_by: 'local' }
+            ]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            openai: {
+              models: {
+                'gpt-4o': {
+                  id: 'gpt-4o',
+                  attachment: true,
+                  reasoning: false,
+                  tool_call: true,
+                  structured_output: true,
+                  temperature: true,
+                  modalities: {
+                    input: ['text', 'image'],
+                    output: ['text']
+                  },
+                  limit: {
+                    context: 128000,
+                    output: 16384
+                  }
+                }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          openai: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'OpenAI',
+            options: {
+              baseURL: 'https://api.openai.com/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+      expect(mockFetch).toHaveBeenNthCalledWith(1, 'https://api.openai.com/v1/models', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://models.dev/models.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.openai.models['openai/gpt-4o']).toEqual(expect.objectContaining({
+        id: 'openai/gpt-4o',
+        attachment: true,
+        reasoning: false,
+        tool_call: true,
+        structured_output: true,
+        temperature: true,
+        modalities: {
+          input: ['text', 'image'],
+          output: ['text']
+        },
+        limit: {
+          context: 128000,
+          output: 16384
+        }
+      }))
+      expect(config.provider.openai.models['unknown/local-model']).not.toHaveProperty('limit')
+      expect(config.provider.openai.models['unknown/local-model']).not.toHaveProperty('tool_call')
+    })
+
+    it('should continue discovery when models.dev metadata cannot be fetched', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              { id: 'local-model', object: 'model', created: 1234567890, owned_by: 'local' }
+            ]
+          })
+        })
+        .mockRejectedValueOnce(new Error('models.dev unavailable'))
+
+      const config: any = {
+        provider: {
+          local: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Local',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.local.models['local-model']).toEqual(expect.objectContaining({
+        id: 'local-model'
+      }))
+      expect(config.provider.local.models['local-model']).not.toHaveProperty('limit')
     })
 
     it('should skip embedding models even when model info is missing', async () => {
