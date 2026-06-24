@@ -1,6 +1,5 @@
 import type { LiteLLMModelInfo, LiteLLMModelInfoEntry } from '../../types'
 import type { ModelInfoEnricher, ModelInfoEnricherOptions } from './types'
-import { lookupModelsDevData, type ModelsDevModel } from '../models-dev-fetcher'
 
 function hasUsableNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -71,111 +70,27 @@ function createReasoningVariants(info: LiteLLMModelInfo): Record<string, any> | 
   return Object.keys(variants).length > 0 ? variants : undefined
 }
 
-function applyLiteLLMModelInfo(
-  modelConfig: any, 
-  entry: LiteLLMModelInfoEntry | undefined,
-  modelsDevCache?: Map<string, ModelsDevModel>
-): void {
-  const DEFAULT_CONTEXT = 200000
-  const DEFAULT_OUTPUT = 32000
-
+function applyLiteLLMModelInfo(modelConfig: any, entry: LiteLLMModelInfoEntry | undefined): void {
   const info = entry?.model_info
-  
-  let contextLimit: number | undefined
-  let outputLimit: number | undefined
+  if (!info) return
 
-  if (info) {
-    contextLimit = hasUsableNumber(info.max_input_tokens) 
-      ? info.max_input_tokens 
-      : hasUsableNumber(info.max_tokens)
-        ? info.max_tokens
-        : undefined
-
-    outputLimit = hasUsableNumber(info.max_output_tokens) 
-      ? info.max_output_tokens 
-      : hasUsableNumber(info.max_tokens)
-        ? info.max_tokens
-        : undefined
-  }
-
-  let modelsDevData: ModelsDevModel | undefined
-  if (modelsDevCache) {
-    modelsDevData = lookupModelsDevData(modelConfig.id, modelsDevCache)
-  }
-
-  if ((!hasUsableNumber(contextLimit) || !hasUsableNumber(outputLimit)) && modelsDevData?.limit) {
-    if (!hasUsableNumber(contextLimit)) {
-      contextLimit = modelsDevData.limit.context || modelsDevData.limit.input
-    }
-    if (!hasUsableNumber(outputLimit)) {
-      outputLimit = modelsDevData.limit.output
+  const contextLimit = hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : info.max_tokens
+  const outputLimit = hasUsableNumber(info.max_output_tokens) ? info.max_output_tokens : info.max_tokens
+  if (hasUsableNumber(contextLimit) && hasUsableNumber(outputLimit)) {
+    modelConfig.limit = {
+      context: contextLimit,
+      input: hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : undefined,
+      output: outputLimit,
     }
   }
 
-  contextLimit = hasUsableNumber(contextLimit) ? contextLimit : DEFAULT_CONTEXT
-  outputLimit = hasUsableNumber(outputLimit) ? outputLimit : DEFAULT_OUTPUT
-
-  modelConfig.limit = {
-    context: contextLimit,
-    input: info && hasUsableNumber(info.max_input_tokens) ? info.max_input_tokens : undefined,
-    output: outputLimit,
+  if (info.supports_reasoning === true) {
+    modelConfig.reasoning = true
   }
 
-  if (info) {
-    if (info.supports_reasoning === true) {
-      modelConfig.reasoning = true
-    } else if (modelsDevData?.reasoning !== undefined) {
-      modelConfig.reasoning = modelsDevData.reasoning
-    }
-
-    const variants = createReasoningVariants(info)
-    if (variants) {
-      modelConfig.variants = variants
-    }
-  } else if (modelsDevData?.reasoning !== undefined) {
-    modelConfig.reasoning = modelsDevData.reasoning
-  }
-
-  if (modelsDevData) {
-    if (modelsDevData.family !== undefined) {
-      modelConfig.family = modelsDevData.family
-    }
-    if (modelsDevData.attachment !== undefined) {
-      modelConfig.attachment = modelsDevData.attachment
-    }
-    if (modelsDevData.tool_call !== undefined) {
-      modelConfig.tool_call = modelsDevData.tool_call
-    }
-    if (modelsDevData.structured_output !== undefined) {
-      modelConfig.structured_output = modelsDevData.structured_output
-    }
-    if (modelsDevData.temperature !== undefined) {
-      modelConfig.temperature = modelsDevData.temperature
-    }
-    if (modelsDevData.knowledge !== undefined && modelsDevData.knowledge !== null) {
-      modelConfig.knowledge = modelsDevData.knowledge
-    }
-    if (modelsDevData.release_date !== undefined) {
-      modelConfig.release_date = modelsDevData.release_date
-    }
-    if (modelsDevData.last_updated !== undefined) {
-      modelConfig.last_updated = modelsDevData.last_updated
-    }
-    if (modelsDevData.modalities !== undefined) {
-      modelConfig.modalities = modelsDevData.modalities
-    }
-    if (modelsDevData.open_weights !== undefined) {
-      modelConfig.open_weights = modelsDevData.open_weights
-    }
-    if (modelsDevData.weights !== undefined && modelsDevData.weights !== null) {
-      modelConfig.weights = modelsDevData.weights
-    }
-    if (modelsDevData.benchmarks !== undefined && modelsDevData.benchmarks !== null) {
-      modelConfig.benchmarks = modelsDevData.benchmarks
-    }
-    if (modelsDevData.pricing !== undefined && modelsDevData.pricing !== null) {
-      modelConfig.pricing = modelsDevData.pricing
-    }
+  const variants = createReasoningVariants(info)
+  if (variants) {
+    modelConfig.variants = variants
   }
 }
 
@@ -197,11 +112,7 @@ export function createLiteLLMModelInfoEnricher(
       return typeof mode === 'string' && mode.length > 0 && mode !== 'chat'
     },
     applyModelInfo(modelConfig: any, modelId: string): void {
-      applyLiteLLMModelInfo(
-        modelConfig, 
-        getModelInfo(modelInfoById, modelId),
-        options.modelsDevCache
-      )
+      applyLiteLLMModelInfo(modelConfig, getModelInfo(modelInfoById, modelId))
     },
   }
 }

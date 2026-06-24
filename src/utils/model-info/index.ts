@@ -1,4 +1,5 @@
 import { createLiteLLMModelInfoEnricher } from './litellm'
+import { createModelsDevModelInfoEnricher } from './models-dev'
 import type { ModelInfoFormat } from '../../types/plugin-config'
 import type { ModelInfoEnricher, ModelInfoEnricherOptions } from './types'
 
@@ -6,6 +7,7 @@ type ModelInfoEnricherFactory = (data: unknown, options: ModelInfoEnricherOption
 
 const MODEL_INFO_ENRICHERS: Record<string, ModelInfoEnricherFactory> = {
   litellm: createLiteLLMModelInfoEnricher,
+  'models.dev': createModelsDevModelInfoEnricher,
 }
 
 export function createModelInfoEnricher(

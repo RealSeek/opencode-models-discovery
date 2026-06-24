@@ -1,0 +1,98 @@
+import { describe, it, expect, beforeEach } from 'vitest'
+import { lookupModelsDevData, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
+
+describe('models.dev fetcher', () => {
+  beforeEach(() => {
+    modelsDevTestUtils.resetCache()
+  })
+
+  it('should parse provider-nested models.dev data', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      openai: {
+        models: {
+          'gpt-4o': {
+            id: 'gpt-4o',
+            tool_call: true,
+            limit: { context: 128000, output: 16384 }
+          }
+        }
+      }
+    })
+
+    expect(cache.get('openai/gpt-4o')).toEqual(expect.objectContaining({
+      id: 'openai/gpt-4o',
+      tool_call: true,
+      limit: { context: 128000, input: undefined, output: 16384 }
+    }))
+  })
+
+  it('should parse flat models.dev data keyed by model id', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      'openai/gpt-4o': {
+        tool_call: true,
+        limit: { context: 128000 }
+      }
+    })
+
+    expect(cache.get('openai/gpt-4o')).toEqual(expect.objectContaining({
+      id: 'openai/gpt-4o',
+      tool_call: true,
+      limit: { context: 128000, input: undefined, output: undefined }
+    }))
+  })
+
+  it('should match exact and same-provider model variants', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      openai: {
+        models: {
+          'gpt-4o': { id: 'gpt-4o', tool_call: true },
+          'gpt-4o-mini': { id: 'gpt-4o-mini', tool_call: false }
+        }
+      },
+      anthropic: {
+        models: {
+          'claude-3-5-sonnet': { id: 'claude-3-5-sonnet', reasoning: true }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('openai/gpt-4o-mini', cache)?.id).toBe('openai/gpt-4o-mini')
+    expect(lookupModelsDevData('openai/gpt-4o-2024-11-20', cache)?.id).toBe('openai/gpt-4o')
+  })
+
+  it('should avoid cross-provider model-only matches when provider is present', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      openai: {
+        models: {
+          'shared-model': { id: 'shared-model', tool_call: true }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('custom/shared-model', cache)).toBeUndefined()
+  })
+
+  it('should allow model-only matches when provider is absent', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      openai: {
+        models: {
+          'gpt-4o': { id: 'gpt-4o', tool_call: true }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('gpt-4o', cache)?.id).toBe('openai/gpt-4o')
+  })
+
+  it('should require a strong prefix match', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      openai: {
+        models: {
+          gpt: { id: 'gpt', tool_call: true }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('openai/gpt-4o-2024-11-20', cache)).toBeUndefined()
+  })
+})

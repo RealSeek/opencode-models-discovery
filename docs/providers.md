@@ -137,4 +137,34 @@ A provider is considered discoverable if it matches any detection signal above, 
 }
 ```
 
+### models.dev Metadata Enrichment
+
+Providers that expose only a minimal OpenAI-compatible `/v1/models` response can opt into metadata enrichment from models.dev:
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "openrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OpenRouter",
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1",
+        "apiKey": "YOUR_OPENROUTER_API_KEY",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "models.dev"
+        }
+      }
+    }
+  }
+}
+```
+
+This setting is explicit because models.dev is an external metadata source. Without `modelInfoFormat: "models.dev"`, the plugin does not contact models.dev.
+
+This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/).
+
+When a safe match exists, models.dev metadata can add model limits and capabilities such as `tool_call`, `reasoning`, `attachment`, `structured_output`, `temperature`, and `modalities`.
+
 This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends are supported when the `baseURL` contains `/v1/`, when a provider-specific discovery endpoint is configured, or when provider-level discovery is explicitly forced on. It also means providers like DeepSeek can be discovered from a non-`/v1` baseURL as long as the models endpoint is configured explicitly.

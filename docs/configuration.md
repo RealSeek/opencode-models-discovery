@@ -43,7 +43,7 @@ Each provider can override discovery behavior through `provider.<name>.options.m
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Override global discovery and provider filters for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info endpoint path. Metadata enrichment is disabled when omitted |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` and `"models.dev"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
@@ -66,7 +66,18 @@ If `provider.<name>.options.modelsDiscovery.endpoint` is omitted, the plugin use
 
 ## Model Metadata Enrichment
 
-LiteLLM exposes a richer `/v1/model/info` endpoint in addition to the OpenAI-compatible `/v1/models` endpoint. Because this endpoint is not part of the generic OpenAI-compatible API contract, metadata enrichment is opt-in.
+The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
+
+The plugin currently supports two model info formats:
+
+| Format | Source | Requires `modelInfoEndpoint` | Notes |
+|--------|--------|------------------------------|-------|
+| `"litellm"` | Provider-specific model info endpoint | Yes | Uses LiteLLM `/v1/model/info` responses |
+| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
+
+### LiteLLM Model Info
+
+LiteLLM exposes a richer `/v1/model/info` endpoint in addition to the OpenAI-compatible `/v1/models` endpoint.
 
 Configure both `modelInfoEndpoint` and `modelInfoFormat` to enable it for a provider.
 
@@ -98,6 +109,56 @@ When model info is available, the plugin uses LiteLLM `model_info` fields to pop
 - `supports_reasoning` enables `reasoning`
 - `supports_*_reasoning_effort` and `supported_openai_params` create reasoning `variants`
 - By default, entries whose `model_info.mode` is not `chat` are skipped
+
+### models.dev Metadata
+
+Use `modelInfoFormat: "models.dev"` to enrich discovered models from the public [models.dev](https://models.dev) metadata index.
+
+This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/).
+
+This does not require `modelInfoEndpoint`, because the source is fixed to `https://models.dev/models.json`:
+
+```json
+{
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "openrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OpenRouter",
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1",
+        "apiKey": "YOUR_OPENROUTER_API_KEY",
+        "modelsDiscovery": {
+          "enabled": true,
+          "modelInfoFormat": "models.dev"
+        }
+      },
+      "models": {}
+    }
+  }
+}
+```
+
+When a discovered model can be matched to models.dev metadata, the plugin may populate:
+
+- `limit.context`, `limit.input`, and `limit.output`
+- `attachment`
+- `reasoning`
+- `tool_call`
+- `structured_output`
+- `temperature`
+- `modalities`
+
+Matching is intentionally conservative:
+
+- Exact model ids are preferred.
+- Provider-qualified matches stay within the same provider.
+- Model-only matches are used only when the discovered model id has no provider prefix.
+- Prefix matching is limited to strong same-provider variants, such as date-suffixed model ids.
+
+If models.dev cannot be fetched, or if no safe match is found, discovery still succeeds and the plugin leaves metadata fields unset. It does not inject hardcoded default context or output limits for unknown models.
+
+Because this option makes a public network request to models.dev during discovery, it is disabled unless explicitly configured.
 
 For providers with custom metadata paths or non-standard behavior:
 

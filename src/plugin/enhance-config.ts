@@ -6,7 +6,7 @@ import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, autoDetectOpenAICompatibleProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
-import { fetchModelsDevData, lookupModelsDevData } from '../utils/models-dev-fetcher'
+import { fetchModelsDevData } from '../utils/models-dev-fetcher'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { OpenAIModel } from '../types'
@@ -173,11 +173,6 @@ export async function enhanceConfig(
   logger: PluginLogger
 ): Promise<void> {
   try {
-    const modelsDevCache = await fetchModelsDevData()
-    logger.info('Loaded models.dev data', {
-      count: modelsDevCache.size
-    })
-
     const providers = config.provider || {}
     const openAICompatibleProviders: DiscoveredProvider[] = []
     const providerFilter = getProviderFilter(pluginConfig)
@@ -238,10 +233,17 @@ export async function enhanceConfig(
           provider: providerName,
           format: modelInfoFormat,
         })
+      } else if (modelInfoFormat === 'models.dev') {
+        const modelsDevCache = await fetchModelsDevData()
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
+        logger.info('Loaded models.dev data', {
+          provider: providerName,
+          count: modelsDevCache.size,
+        })
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
         if (modelInfoDiscovery.ok) {
-          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat, modelsDevCache })
+          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
         } else {
           logger.warn('Provider model info discovery failed', {
             provider: providerName,
@@ -296,13 +298,6 @@ export async function enhanceConfig(
               input: ["text", "image"],
               output: ["text"]
             }
-          }
-
-          // Set default limits before enrichment (Tier 2 → Tier 3 fallback)
-          const modelsDevData = modelsDevCache ? lookupModelsDevData(model.id, modelsDevCache) : undefined
-          modelConfig.limit = {
-            context: modelsDevData?.limit?.context || modelsDevData?.limit?.input || 200000,
-            output: modelsDevData?.limit?.output || 32000
           }
 
           modelInfoEnricher?.applyModelInfo(modelConfig, model.id)
