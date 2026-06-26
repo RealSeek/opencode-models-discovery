@@ -247,7 +247,7 @@ function prepareRelease(versionType: string): void {
 
   runCommand(`git push --set-upstream origin ${branchName}`, 'Pushing release branch')
   runCommand(
-    `gh pr create --repo ${repositorySlug} --base main --head ${branchName} --title ${shellQuote(`chore: release v${newVersion}`)} --body ${shellQuote(prBody)}`,
+    `gh pr create --repo ${repositorySlug} --base main --head ${branchName} --title ${shellQuote(`Publish v${newVersion}`)} --body ${shellQuote(prBody)}`,
     'Creating release pull request'
   )
 
