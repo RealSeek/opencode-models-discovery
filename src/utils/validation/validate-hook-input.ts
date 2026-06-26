@@ -10,26 +10,6 @@ export function validateHookInput(hookName: string, input: any): ValidationResul
   }
 
   switch (hookName) {
-    case 'chat.params':
-      if (!input.sessionID || typeof input.sessionID !== 'string') {
-        errors.push('chat.params: sessionID is required and must be a string')
-      }
-      if (!input.model || typeof input.model !== 'object') {
-        errors.push('chat.params: model is required and must be an object')
-      } else {
-        if (!input.model.id || typeof input.model.id !== 'string') {
-          errors.push('chat.params: model.id is required and must be a string')
-        }
-      }
-      if (!input.provider || typeof input.provider !== 'object') {
-        errors.push('chat.params: provider is required and must be an object')
-      } else {
-        if (!input.provider.info || !input.provider.info.id) {
-          warnings.push('chat.params: provider.info.id is missing')
-        }
-      }
-      break
-
     case 'config':
       // Config hook validation is handled by validateConfig
       break
@@ -49,4 +29,3 @@ export function validateHookInput(hookName: string, input: any): ValidationResul
     warnings
   }
 }
-

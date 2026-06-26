@@ -97,11 +97,7 @@ A provider is considered discoverable if it matches any detection signal above, 
 
 ```json
 {
-  "plugin": [
-    ["opencode-models-discovery", {
-      "smartModelName": false
-    }]
-  ],
+  "plugin": ["opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -109,7 +105,8 @@ A provider is considered discoverable if it matches any detection signal above, 
       "options": {
         "baseURL": "http://127.0.0.1:1234/v1",
         "modelsDiscovery": {
-          "enabled": true
+          "enabled": true,
+          "smartModelName": false
         }
       }
     }

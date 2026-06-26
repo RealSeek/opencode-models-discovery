@@ -1,6 +1,9 @@
 import { ToastNotifier } from '../ui/toast-notifier'
 import { validateConfig } from '../utils/validation'
 import { enhanceConfig } from './enhance-config'
+import { hasLegacyGlobalDiscoveryConfig } from '../types/plugin-config'
+import type { LegacyGlobalConfigWarningController } from './legacy-config-warning'
+import { injectConfigCommand, injectMigrationCommand } from './commands'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { PluginConfig } from '../types/plugin-config'
@@ -9,6 +12,7 @@ export function createConfigHook(
   client: PluginInput['client'],
   toastNotifier: ToastNotifier,
   pluginConfig: PluginConfig,
+  legacyGlobalConfigWarning: LegacyGlobalConfigWarningController,
   logger: PluginLogger
 ) {
   return async (config: any) => {
@@ -28,6 +32,12 @@ export function createConfigHook(
       logger.warn('Config warnings', { warnings: validation.warnings })
     }
 
+    injectConfigCommand(config, logger)
+
+    if (hasLegacyGlobalDiscoveryConfig(pluginConfig)) {
+      legacyGlobalConfigWarning.markPending(logger)
+      injectMigrationCommand(config, logger)
+    }
 
     const discoveryPromise = enhanceConfig(
       config,

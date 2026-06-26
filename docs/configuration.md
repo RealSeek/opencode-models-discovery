@@ -1,68 +1,88 @@
 # Configuration Guide
 
-This plugin supports both global plugin configuration and provider-level overrides.
+This plugin discovers models for OpenAI-compatible providers and merges them into the active OpenCode config at startup.
 
-For new setups, prefer `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This keeps discovery rules close to the provider they affect and avoids older global rules unintentionally changing newer providers.
+For new setups, use `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This keeps discovery rules close to the provider they affect and avoids older global rules unintentionally changing newer providers.
 
-## Global Plugin Configuration
+OpenCode's own provider config still controls provider identity, npm package, `baseURL`, credentials, and provider availability. This plugin controls model discovery for providers that OpenCode has made available.
 
-The plugin configuration is placed in the `plugin` array using tuple format `[
-  "plugin-name",
-  { config }
-]`:
+## Provider-Level Configuration
+
+Each provider can configure discovery behavior through `provider.<name>.options.modelsDiscovery`:
 
 ```json
 {
-  "plugin": [
-    ["opencode-models-discovery", {
-      "providers": {
-        "include": [],
-        "exclude": []
-      },
-      "models": {
-        "includeRegex": [],
-        "excludeRegex": []
-      },
-      "discovery": {
-        "enabled": true
-      },
-      "smartModelName": false
-    }]
-  ]
+  "plugin": ["opencode-models-discovery"],
+  "provider": {
+    "lmstudio": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LM Studio",
+      "options": {
+        "baseURL": "http://127.0.0.1:1234/v1",
+        "modelsDiscovery": {
+          "enabled": true,
+          "models": {
+            "includeRegex": ["^llama"]
+          },
+          "smartModelName": true
+        }
+      }
+    }
+  }
 }
 ```
 
-Set `smartModelName` to `true` if you want discovered models to use human-friendly display names instead of raw model ids.
-
-## Provider-Level Overrides
-
-Each provider can override discovery behavior through `provider.<name>.options.modelsDiscovery`:
-
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Override global discovery and provider filters for a single provider |
+| `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info endpoint path. Metadata enrichment is disabled when omitted |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` and `"models.dev"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
-| `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Override global `smartModelName` for a single provider |
+| `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Use human-friendly display names instead of raw discovered model ids |
 
 Recommended approach:
 
-1. Keep global plugin config minimal, or use it only as a broad default.
+1. Keep the plugin entry simple: `"plugin": ["opencode-models-discovery"]`.
 2. Put endpoint, enablement, and model filtering rules on each provider.
-3. Use provider-level overrides whenever a provider does not follow the usual `/v1/models` convention.
+3. Use `modelsDiscovery.endpoint` whenever a provider does not follow the usual `/v1/models` convention.
+4. Use OpenCode `/connect` credentials or `provider.<name>.options.apiKey` for secrets; do not duplicate API keys unless needed.
 
 If `provider.<name>.options.modelsDiscovery.endpoint` is omitted, the plugin uses `/v1/models`.
 
 ## Priority Rules
 
-1. `provider.<name>.options.modelsDiscovery.enabled` overrides global `discovery.enabled` and `providers.include/exclude`.
-2. If a provider defines its own `modelsDiscovery.models` filters, those filters replace global `models.includeRegex/excludeRegex` for that provider.
-3. If a provider does not define its own model filters, global `models.includeRegex/excludeRegex` are used.
-4. `provider.<name>.options.modelsDiscovery.smartModelName` overrides global `smartModelName`.
+1. `provider.<name>.options.modelsDiscovery.enabled = true` forces discovery for that provider.
+2. `provider.<name>.options.modelsDiscovery.enabled = false` disables discovery for that provider.
+3. If `enabled` is omitted, discovery follows the plugin default and compatibility detection.
+4. If a provider defines `modelsDiscovery.models` filters, those filters apply only to that provider.
+5. OpenCode `enabled_providers` and `disabled_providers` control whether providers are available at all. This plugin does not override those OpenCode provider availability settings.
+
+## v0.12 Transition and v1.0 Compatibility
+
+Version `0.12.x` still supports legacy plugin-level discovery configuration for compatibility, but new configuration should be provider-level. Plugin-level discovery options are planned for removal in `1.0.0`.
+
+Legacy plugin-level options:
+
+- `discovery.enabled`
+- `providers.include`
+- `providers.exclude`
+- `models.includeRegex`
+- `models.excludeRegex`
+- `smartModelName`
+
+When deprecated global config is detected, `0.12.x` logs a warning, shows a toast, and injects `/models-discovery:migrate` to guide migration.
+
+Planned `1.0.0` behavior:
+
+- Plugin-level discovery config is removed.
+- Discovery remains enabled by default for compatible providers.
+- `provider.<name>.options.modelsDiscovery.enabled = false` disables discovery for a specific provider.
+- `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false` is planned for users who want providers without explicit config to default to disabled.
+
+Use `/models-discovery:config` for assistant-guided provider-level setup. Use `/models-discovery:migrate` when `0.12.x` detects deprecated plugin-level config.
 
 ## Model Metadata Enrichment
 
@@ -186,13 +206,7 @@ For providers with custom metadata paths or non-standard behavior:
 
 ```json
 {
-  "plugin": [
-    ["opencode-models-discovery", {
-      "discovery": {
-        "enabled": false
-      }
-    }]
-  ],
+  "plugin": ["opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -240,11 +254,7 @@ In this example:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    ["opencode-models-discovery", {
-      "smartModelName": false
-    }]
-  ],
+  "plugin": ["opencode-models-discovery"],
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -278,14 +288,37 @@ In this example:
 
 In this example:
 
-1. The global plugin config only keeps a shared default.
+1. The plugin entry is simple and contains no legacy global discovery config.
 2. `ollama` uses the default discovery path derived from its `/v1` baseURL.
 3. `deepseek` does not rely on `/v1/models` and explicitly uses `"/models"`.
 4. Each provider can evolve independently without changing global include or endpoint rules.
 
 ## Provider Filtering
 
-Control which providers are discovered:
+For new configs, enable or disable discovery on the provider itself:
+
+```json
+{
+  "provider": {
+    "ollama": {
+      "options": {
+        "modelsDiscovery": {
+          "enabled": true
+        }
+      }
+    },
+    "lmstudio": {
+      "options": {
+        "modelsDiscovery": {
+          "enabled": false
+        }
+      }
+    }
+  }
+}
+```
+
+Legacy plugin-level provider filters are still supported in `0.12.x`, but are deprecated:
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -307,24 +340,30 @@ Control which providers are discovered:
 
 ## Model Filtering
 
-Control which discovered models are auto-injected with regular expressions:
+Control which discovered models are auto-injected with provider-level regular expressions:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `models.includeRegex` | `string[]` | If non-empty, only discovered model ids matching at least one regex will be added |
-| `models.excludeRegex` | `string[]` | Discovered model ids matching any regex will be skipped when `includeRegex` is empty |
+| `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | If non-empty, only discovered model ids matching at least one regex will be added for this provider |
+| `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Discovered model ids matching any regex will be skipped for this provider |
 
 Regex filtering only applies to auto-discovered models. Models already explicitly configured by the user are preserved.
 
 ```json
 {
-  "plugin": [
-    ["opencode-models-discovery", {
-      "models": {
-        "includeRegex": ["^qwen/", "gpt-4"],
-        "excludeRegex": ["embedding", "test"]
+  "provider": {
+    "ollama": {
+      "options": {
+        "modelsDiscovery": {
+          "models": {
+            "includeRegex": ["^qwen/", "gpt-4"],
+            "excludeRegex": ["embedding", "test"]
+          }
+        }
       }
-    }]
-  ]
+    }
+  }
 }
 ```
+
+Legacy plugin-level model filters are still supported in `0.12.x`, but are deprecated.
