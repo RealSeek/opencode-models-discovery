@@ -11,7 +11,7 @@
  *   bun scripts/release.ts publish         # Tag and publish the current package version
  */
 
-import { readFileSync, writeFileSync } from 'fs'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { execSync } from 'child_process'
 
 const VERSION_TYPES = ['patch', 'minor', 'major'] as const
@@ -67,11 +67,21 @@ function bumpVersion(currentVersion: string, type: VersionType | string): string
   }
 }
 
-function updatePackageJson(version: string): void {
+function updatePackageManifests(version: string): void {
   const pkg = JSON.parse(readFileSync('package.json', 'utf-8'))
   pkg.version = version
   writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')
   console.log(`✓ Updated package.json to version ${version}`)
+
+  if (existsSync('package-lock.json')) {
+    const lockfile = JSON.parse(readFileSync('package-lock.json', 'utf-8'))
+    lockfile.version = version
+    if (lockfile.packages?.['']) {
+      lockfile.packages[''].version = version
+    }
+    writeFileSync('package-lock.json', JSON.stringify(lockfile, null, 2) + '\n')
+    console.log(`✓ Updated package-lock.json to version ${version}`)
+  }
 }
 
 function runCommand(cmd: string, description: string): void {
@@ -215,7 +225,7 @@ function prepareRelease(versionType: string): void {
 
   runCommand(`git switch -c ${branchName}`, `Creating release branch ${branchName}`)
 
-  updatePackageJson(newVersion)
+  updatePackageManifests(newVersion)
 
   runCommand('npm run build', 'Running build and tests')
 
@@ -237,7 +247,7 @@ function prepareRelease(versionType: string): void {
 
   runCommand(`git push --set-upstream origin ${branchName}`, 'Pushing release branch')
   runCommand(
-    `gh pr create --repo ${repositorySlug} --base main --head ${branchName} --title ${shellQuote(`chore: release v${newVersion}`)} --body ${shellQuote(prBody)}`,
+    `gh pr create --repo ${repositorySlug} --base main --head ${branchName} --title ${shellQuote(`Publish v${newVersion}`)} --body ${shellQuote(prBody)}`,
     'Creating release pull request'
   )
 

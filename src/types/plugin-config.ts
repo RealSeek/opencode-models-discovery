@@ -69,6 +69,15 @@ export function getDiscoveryConfig(config: PluginConfig): DiscoveryConfig {
   }
 }
 
+export function hasLegacyGlobalDiscoveryConfig(config: PluginConfig): boolean {
+  return (
+    config.discovery !== undefined ||
+    config.providers !== undefined ||
+    config.models !== undefined ||
+    config.smartModelName !== undefined
+  )
+}
+
 export function shouldDiscoverProviderWithOverride(
   providerName: string,
   filter: ProviderFilter,
