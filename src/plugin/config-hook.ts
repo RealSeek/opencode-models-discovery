@@ -3,7 +3,7 @@ import { validateConfig } from '../utils/validation'
 import { enhanceConfig } from './enhance-config'
 import { hasLegacyGlobalDiscoveryConfig } from '../types/plugin-config'
 import type { LegacyGlobalConfigWarningController } from './legacy-config-warning'
-import { injectMigrationCommand } from './migration-command'
+import { injectConfigCommand, injectMigrationCommand } from './commands'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { PluginConfig } from '../types/plugin-config'
@@ -31,6 +31,8 @@ export function createConfigHook(
     if (validation.warnings.length > 0) {
       logger.warn('Config warnings', { warnings: validation.warnings })
     }
+
+    injectConfigCommand(config, logger)
 
     if (hasLegacyGlobalDiscoveryConfig(pluginConfig)) {
       legacyGlobalConfigWarning.markPending(logger)

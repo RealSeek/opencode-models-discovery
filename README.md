@@ -55,11 +55,108 @@ Add the plugin to your `opencode.json`:
 
 On startup, the plugin will query the provider's models endpoint and merge discovered models into the active OpenCode config.
 
+## v0.12 Transition and v1.0 Compatibility
+
+Version `0.12.x` is a transition line for the next configuration model. Existing plugin-level discovery options continue to work in `0.12.x`, but they are deprecated and will be removed in `1.0.0`.
+
+Deprecated plugin-level options:
+
+- `discovery.enabled`
+- `providers.include`
+- `providers.exclude`
+- `models.includeRegex`
+- `models.excludeRegex`
+- `smartModelName`
+
+Recommended configuration should live on each provider instead:
+
+```json
+{
+  "provider": {
+    "lmstudio": {
+      "options": {
+        "modelsDiscovery": {
+          "enabled": true,
+          "models": {
+            "includeRegex": "^llama",
+            "excludeRegex": "embedding"
+          },
+          "smartModelName": true,
+          "modelInfoFormat": "models.dev"
+        }
+      }
+    }
+  }
+}
+```
+
+Only add the fields you need. For example, do not add regex filters unless you actually want filtering.
+
+Planned `1.0.0` behavior:
+
+- Plugin-level global discovery config will be removed.
+- Discovery will remain enabled by default for providers unless disabled.
+- Set `provider.<id>.options.modelsDiscovery.enabled = false` to disable discovery for one provider.
+- A future `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false` environment variable is planned for users who want unspecified providers to default to disabled.
+
+When `0.12.x` detects deprecated global config, it logs a warning, shows a migration toast, and injects `/models-discovery:migrate` into OpenCode commands.
+
+## Helper Commands
+
+The plugin injects helper commands into OpenCode's runtime command list.
+
+### `/models-discovery:config`
+
+Opens an assistant-guided configuration flow using OpenCode's `customize-opencode` skill. Use this when setting up the plugin, adding provider-level discovery config, enabling metadata enrichment, or disabling discovery for a provider.
+
+This command is available whenever the plugin is loaded.
+
+### `/models-discovery:migrate`
+
+Opens an assistant-guided migration flow using OpenCode's `customize-opencode` skill. It looks for OpenCode config files that declare this plugin and moves deprecated plugin-level discovery options into `provider.<id>.options.modelsDiscovery` where safe.
+
+This command is injected only when deprecated global discovery config is detected.
+
+The migration assistant is instructed to inspect project config, user global config, and `OPENCODE_CONFIG` when present. It should not edit managed or organization-controlled config unless you explicitly ask it to.
+
+## Model Metadata Enrichment
+
+Discovery adds model ids to your OpenCode provider config. Some providers only expose minimal `/models` responses, so the plugin can optionally enrich discovered models with OpenCode-compatible capability metadata such as context limits, output limits, reasoning, tool calling, attachments, structured output, temperature support, and modalities.
+
+Metadata enrichment is explicit. The plugin does not contact external metadata sources unless configured.
+
+For models.dev enrichment:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoFormat": "models.dev"
+  }
+}
+```
+
+For LiteLLM-compatible model info endpoints:
+
+```json
+{
+  "modelsDiscovery": {
+    "enabled": true,
+    "modelInfoEndpoint": "/v1/model/info",
+    "modelInfoFormat": "litellm"
+  }
+}
+```
+
+If metadata cannot be fetched or matched safely, discovery still succeeds and the plugin leaves unknown capability fields unset rather than guessing defaults. See [`docs/providers.md`](docs/providers.md#modelsdev-metadata-enrichment) for details.
+
 ## Upgrade Note
 
 If you upgrade the plugin and OpenCode still behaves like it is using an older build, refresh the OpenCode plugin cache and restart OpenCode.
 
 This can happen because OpenCode may continue using a previously cached package after the npm package itself has been updated.
+
+After changing `opencode.json`, restart OpenCode. OpenCode loads config at startup, so command and provider changes are not guaranteed to take effect in an already-running session.
 
 ## `/connect` Support
 

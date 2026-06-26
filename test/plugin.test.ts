@@ -232,6 +232,17 @@ describe('ModelDiscovery Plugin', () => {
         expect(config.command['models-discovery:migrate'].template).toContain('provider.<id>.options.modelsDiscovery')
         expect(config.command['models-discovery:migrate'].template).toContain('OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false')
         expect(config.command['models-discovery:migrate'].template).toContain('restart opencode')
+        expect(config.command['models-discovery:config']).toEqual(expect.objectContaining({
+          description: 'Configure opencode-models-discovery',
+          agent: 'build',
+          template: expect.stringContaining('Help configure opencode-models-discovery using the recommended provider-level configuration style.'),
+        }))
+        expect(config.command['models-discovery:config'].model).toBeUndefined()
+        expect(config.command['models-discovery:config'].template).toContain('Use the customize-opencode skill.')
+        expect(config.command['models-discovery:config'].template).toContain('provider.<id>.options.modelsDiscovery')
+        expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="models.dev"')
+        expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="litellm"')
+        expect(config.command['models-discovery:config'].template).toContain('restart opencode')
 
         expect(mockClient.tui.showToast).not.toHaveBeenCalled()
 
@@ -308,10 +319,15 @@ describe('ModelDiscovery Plugin', () => {
       await pluginHooks.config(config)
 
       expect(mockClient.tui.showToast).not.toHaveBeenCalled()
-      expect(config.command).toBeUndefined()
+      expect(config.command['models-discovery:config']).toEqual(expect.objectContaining({
+        description: 'Configure opencode-models-discovery',
+        agent: 'build',
+        template: expect.stringContaining('Use the customize-opencode skill.'),
+      }))
+      expect(config.command['models-discovery:migrate']).toBeUndefined()
     })
 
-    it('should not overwrite an existing migration command', async () => {
+    it('should not overwrite existing migration and config commands', async () => {
       const hooksWithConfig = await ModelDiscoveryPlugin({
         client: mockClient,
         project: {
@@ -335,6 +351,10 @@ describe('ModelDiscovery Plugin', () => {
           'models-discovery:migrate': {
             description: 'User command',
             template: 'Do not replace this',
+          },
+          'models-discovery:config': {
+            description: 'User config command',
+            template: 'Keep custom config command',
           }
         }
       }
@@ -345,12 +365,25 @@ describe('ModelDiscovery Plugin', () => {
         description: 'User command',
         template: 'Do not replace this',
       })
+      expect(config.command['models-discovery:config']).toEqual({
+        description: 'User config command',
+        template: 'Keep custom config command',
+      })
       expect(mockClient.app.log).toHaveBeenCalledWith(expect.objectContaining({
         body: expect.objectContaining({
           level: 'warn',
           message: 'Migration command already exists; leaving user-defined command unchanged',
           extra: expect.objectContaining({
             command: 'models-discovery:migrate',
+          })
+        })
+      }))
+      expect(mockClient.app.log).toHaveBeenCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          level: 'warn',
+          message: 'Config command already exists; leaving user-defined command unchanged',
+          extra: expect.objectContaining({
+            command: 'models-discovery:config',
           })
         })
       }))
