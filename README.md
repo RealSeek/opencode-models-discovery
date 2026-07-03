@@ -15,8 +15,8 @@ Originally inspired by [opencode-lmstudio](https://github.com/nicktasios/opencod
 - Works with any OpenAI-compatible provider
 - Discovers models dynamically from provider model endpoints
 - Injects discovered models into OpenCode provider config automatically
-- Supports provider-level include, exclude, and endpoint overrides
-- Supports regex-based model filtering
+- Supports provider-level enablement, endpoint overrides, and model filters
+- Supports regex-based model id filtering and raw provider field equality filtering
 - Can enrich model limits and reasoning metadata from provider-specific endpoints
 - Supports OpenCode `/connect` credentials for custom providers
 
@@ -55,9 +55,11 @@ Add the plugin to your `opencode.json`:
 
 On startup, the plugin will query the provider's models endpoint and merge discovered models into the active OpenCode config.
 
-## v0.12 Transition and v1.0 Compatibility
+## v1.0 Configuration Boundary
 
-Version `0.12.x` is a transition line for the next configuration model. Existing plugin-level discovery options continue to work in `0.12.x`, but they are deprecated and will be removed in `1.0.0`.
+Version `1.0.0` uses provider-level discovery configuration only. Put discovery settings under `provider.<id>.options.modelsDiscovery`.
+
+Plugin-level global discovery options are still detected for migration help, but they are no longer applied at runtime:
 
 Deprecated plugin-level options:
 
@@ -68,7 +70,7 @@ Deprecated plugin-level options:
 - `models.excludeRegex`
 - `smartModelName`
 
-Recommended configuration should live on each provider instead:
+Configuration should live on each provider instead:
 
 ```json
 {
@@ -78,8 +80,13 @@ Recommended configuration should live on each provider instead:
         "modelsDiscovery": {
           "enabled": true,
           "models": {
-            "includeRegex": "^llama",
-            "excludeRegex": "embedding"
+            "includeBy": [
+              { "field": "id", "match": "^llama" }
+            ],
+            "excludeBy": [
+              { "field": "available", "equals": false },
+              { "field": "id", "match": "embedding" }
+            ]
           },
           "smartModelName": true,
           "modelInfoFormat": "models.dev"
@@ -90,16 +97,16 @@ Recommended configuration should live on each provider instead:
 }
 ```
 
-Only add the fields you need. For example, do not add regex filters unless you actually want filtering.
+Only add the fields you need. For example, do not add filters unless you actually want filtering.
 
-Planned `1.0.0` behavior:
-
-- Plugin-level global discovery config will be removed.
-- Discovery will remain enabled by default for providers unless disabled.
+- Discovery remains enabled by default for providers unless disabled.
 - Set `provider.<id>.options.modelsDiscovery.enabled = false` to disable discovery for one provider.
-- A future `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false` environment variable is planned for users who want unspecified providers to default to disabled.
+- Set `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false` to make providers without explicit `modelsDiscovery.enabled` default to disabled.
+- Explicit provider-level `modelsDiscovery.enabled` always wins over the environment default.
 
-When `0.12.x` detects deprecated global config, it logs a warning, shows a migration toast, and injects `/models-discovery:migrate` into OpenCode commands.
+When legacy global config is detected, the plugin logs a warning, shows a migration toast, and injects `/models-discovery:migrate` into OpenCode commands.
+
+Prefer `models.includeBy` and `models.excludeBy` for model filtering. They filter top-level raw fields returned by a provider's `/v1/models` response. Each field rule uses either `equals` for strict equality or `match` for regex matching against string field values. Use `{ "field": "id", "match": "..." }` for id/name regex filtering. `includeBy` and `excludeBy` are cumulative, and `excludeBy` wins over `includeBy`. `models.includeRegex` and `models.excludeRegex` are retained as legacy id-only shortcuts; when `includeRegex` is configured, `excludeRegex` is not applied. Provider-specific fields such as `available` are not part of the generic OpenAI-compatible contract, so configure these filters only when your provider returns those fields.
 
 ## Helper Commands
 
@@ -113,9 +120,9 @@ This command is available whenever the plugin is loaded.
 
 ### `/models-discovery:migrate`
 
-Opens an assistant-guided migration flow using OpenCode's `customize-opencode` skill. It looks for OpenCode config files that declare this plugin and moves deprecated plugin-level discovery options into `provider.<id>.options.modelsDiscovery` where safe.
+Opens an assistant-guided migration flow using OpenCode's `customize-opencode` skill. It looks for OpenCode config files that declare this plugin and moves legacy plugin-level discovery options into `provider.<id>.options.modelsDiscovery` where safe.
 
-This command is injected only when deprecated global discovery config is detected.
+This command is injected only when legacy global discovery config is detected.
 
 The migration assistant is instructed to inspect project config, user global config, and `OPENCODE_CONFIG` when present. It should not edit managed or organization-controlled config unless you explicitly ask it to.
 
@@ -187,6 +194,7 @@ This keeps the same provider configuration model while allowing the plugin to wo
 
 - Configuration guide: [`docs/configuration.md`](docs/configuration.md)
 - `/connect` credentials and auth-backed discovery: [`docs/connect-and-auth.md`](docs/connect-and-auth.md)
+- Community provider examples: [`docs/config_example/`](docs/config_example/)
 - Provider compatibility and detection rules: [`docs/providers.md`](docs/providers.md)
 - Upgrade notes: [`docs/upgrading.md`](docs/upgrading.md)
 

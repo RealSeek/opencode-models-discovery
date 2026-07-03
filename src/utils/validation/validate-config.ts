@@ -14,6 +14,8 @@ export function validateConfig(config: any): ValidationResult {
     for (const [providerName, providerConfig] of Object.entries(config.provider)) {
       const p = providerConfig as any
       const forceDiscoveryEnabled = p.options?.modelsDiscovery?.enabled === true
+      const discoveryConfig = p.options?.modelsDiscovery
+      const discoveryModels = p.options?.modelsDiscovery?.models
 
       if (forceDiscoveryEnabled || canDiscoverModels(p)) {
         if (!p.options?.baseURL) {
@@ -23,6 +25,15 @@ export function validateConfig(config: any): ValidationResult {
           errors.push(`Provider '${providerName}' models must be an object`)
         }
       }
+
+      if (discoveryModels && typeof discoveryModels === 'object') {
+        validateModelFieldFilters(providerName, 'includeBy', discoveryModels.includeBy, errors)
+        validateModelFieldFilters(providerName, 'excludeBy', discoveryModels.excludeBy, errors)
+      }
+
+      if (discoveryConfig && typeof discoveryConfig === 'object') {
+        warnMisplacedModelFieldFilters(providerName, discoveryConfig, warnings)
+      }
     }
   }
 
@@ -31,4 +42,53 @@ export function validateConfig(config: any): ValidationResult {
     errors,
     warnings
   }
+}
+
+function warnMisplacedModelFieldFilters(providerName: string, discoveryConfig: Record<string, unknown>, warnings: string[]): void {
+  for (const key of ['includeBy', 'excludeBy'] as const) {
+    if (Object.prototype.hasOwnProperty.call(discoveryConfig, key)) {
+      warnings.push(`Provider '${providerName}' modelsDiscovery.${key} is ignored; use modelsDiscovery.models.${key} instead`)
+    }
+  }
+}
+
+function validateModelFieldFilters(providerName: string, key: 'includeBy' | 'excludeBy', value: unknown, errors: string[]): void {
+  if (value === undefined) {
+    return
+  }
+
+  if (!Array.isArray(value)) {
+    errors.push(`Provider '${providerName}' modelsDiscovery.models.${key} must be an array`)
+    return
+  }
+
+  value.forEach((rule, index) => {
+    if (!rule || typeof rule !== 'object' || Array.isArray(rule)) {
+      errors.push(`Provider '${providerName}' modelsDiscovery.models.${key}[${index}] must be an object`)
+      return
+    }
+
+    const field = (rule as any).field
+    const hasEquals = Object.prototype.hasOwnProperty.call(rule, 'equals')
+    const hasMatch = Object.prototype.hasOwnProperty.call(rule, 'match')
+    const equals = (rule as any).equals
+    const match = (rule as any).match
+
+    if (typeof field !== 'string' || field.length === 0) {
+      errors.push(`Provider '${providerName}' modelsDiscovery.models.${key}[${index}].field must be a non-empty string`)
+    }
+
+    if (hasEquals === hasMatch) {
+      errors.push(`Provider '${providerName}' modelsDiscovery.models.${key}[${index}] must include exactly one of equals or match`)
+      return
+    }
+
+    if (hasEquals && !(equals === null || ['string', 'number', 'boolean'].includes(typeof equals))) {
+      errors.push(`Provider '${providerName}' modelsDiscovery.models.${key}[${index}].equals must be a string, number, boolean, or null`)
+    }
+
+    if (hasMatch && typeof match !== 'string') {
+      errors.push(`Provider '${providerName}' modelsDiscovery.models.${key}[${index}].match must be a string`)
+    }
+  })
 }

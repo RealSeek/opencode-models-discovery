@@ -29,10 +29,12 @@ Move these settings into provider.<id>.options.modelsDiscovery where possible.
 
 Field mapping:
 - discovery.enabled -> provider.<id>.options.modelsDiscovery.enabled only when needed to preserve behavior
-- models.includeRegex -> provider.<id>.options.modelsDiscovery.models.includeRegex
-- models.excludeRegex -> provider.<id>.options.modelsDiscovery.models.excludeRegex
+- models.includeRegex -> preferably provider.<id>.options.modelsDiscovery.models.includeBy with { "field": "id", "match": "..." }
+- models.excludeRegex -> preferably provider.<id>.options.modelsDiscovery.models.excludeBy with { "field": "id", "match": "..." }
 - smartModelName -> provider.<id>.options.modelsDiscovery.smartModelName
 - providers.exclude -> provider.<id>.options.modelsDiscovery.enabled=false for excluded editable providers
+
+Provider-level models.includeRegex and models.excludeRegex remain supported as id-only shortcuts, but prefer includeBy and excludeBy for migrated config because they support both id filters and provider-specific raw fields.
 
 Preserve unrelated config fields and formatting as much as possible.
 Do not modify files that do not declare this plugin.
@@ -48,10 +50,10 @@ Explain the mechanism to the user before or after editing:
 - After v1.0.0, provider-level modelsDiscovery is the configuration boundary for this plugin.
 
 For v1.0.0 behavior:
-- plugin-level global discovery config is deprecated
+- plugin-level global discovery config is no longer applied
 - discovery remains enabled by default
 - provider.<id>.options.modelsDiscovery.enabled=false disables discovery for that provider
-- OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false can be used later to make unspecified providers default to disabled
+- OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false can be used to make unspecified providers default to disabled
 
 If providers.include is used, preserve the old opt-in behavior by either recommending OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false with explicit enabled providers, or disabling known non-included editable providers with modelsDiscovery.enabled=false. Prefer explaining the environment variable approach instead of writing many disable entries unless the user asks for a pure config-only migration.
 
@@ -81,8 +83,8 @@ Use provider-level configuration under provider.<id>.options.modelsDiscovery. Pr
           "enabled": true,
           "endpoint": "/v1/models",
           "models": {
-            "includeRegex": "...",
-            "excludeRegex": "..."
+            "includeBy": [{ "field": "id", "match": "^chat-" }],
+            "excludeBy": [{ "field": "available", "equals": false }]
           },
           "smartModelName": true,
           "modelInfoEndpoint": "/v1/model/info",
@@ -107,7 +109,10 @@ Explain the mechanism to the user:
 Supported plugin options under provider.<id>.options.modelsDiscovery:
 - enabled: force enable or disable discovery for this provider
 - endpoint: provider-specific models endpoint path; defaults to /v1/models
-- models.includeRegex and models.excludeRegex: provider-specific model filters
+- models.includeRegex: shortcut for model id regex allow-list; prefer models.includeBy with field="id" and match for new config
+- models.excludeRegex: shortcut for model id regex deny-list; prefer models.excludeBy with field="id" and match for new config
+- models.includeBy: allow-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
+- models.excludeBy: deny-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - smartModelName: use friendlier display names for discovered models
 - modelInfoFormat="models.dev": enrich from the public models.dev index without modelInfoEndpoint
 - modelInfoEndpoint plus modelInfoFormat="litellm": enrich from a LiteLLM-compatible model info endpoint
@@ -117,7 +122,16 @@ Recommended defaults:
 - omit modelsDiscovery.enabled when the user is fine with discovery defaulting on
 - set modelsDiscovery.enabled=false to disable discovery for a specific provider
 - omit endpoint when the provider uses the standard /v1/models endpoint
-- use models.includeRegex or models.excludeRegex only when the user wants model filtering
+- prefer models.includeBy and models.excludeBy for model filtering
+- use models.includeBy or models.excludeBy with field="id" and match for id/name regex filtering
+- use models.includeBy or models.excludeBy with equals for strict equality on provider-specific top-level raw model fields
+- use models.includeBy or models.excludeBy with match for regex matching on string top-level raw model fields
+- treat models.includeRegex and models.excludeRegex as id-only shortcuts for includeBy/excludeBy; do not recommend them for new config unless the user asks for the shorter id-only syntax
+- missing fields do not match includeBy or excludeBy rules
+- includeBy and excludeBy are cumulative: a model must pass includeBy first, then excludeBy
+- excludeBy wins over includeBy when both match the same model
+- includeRegex and excludeRegex preserve legacy shortcut behavior: includeRegex takes precedence, so excludeRegex is only applied when includeRegex is not configured
+- avoid configuring both includeBy field="id" match rules and includeRegex unless the user wants an intersection with legacy id-only shortcut behavior
 - use smartModelName=true only when the user wants friendlier display names
 - use modelInfoFormat="models.dev" for models.dev metadata enrichment
 - use modelInfoEndpoint and modelInfoFormat="litellm" for LiteLLM-compatible model info endpoints
@@ -129,11 +143,9 @@ Provider compatibility guidance:
 - modelsDiscovery.enabled=true can force discovery for a provider that does not match automatic compatibility detection.
 
 Configuration compatibility boundary:
-- v0.12.x still supports deprecated plugin-level discovery config for compatibility.
-- v1.0.0 will remove plugin-level discovery config.
+- v1.0.0 ignores plugin-level global discovery config at runtime.
 - Recommended new config should use provider.<id>.options.modelsDiscovery.
-- Discovery is planned to remain enabled by default in v1.0.0 unless a provider sets modelsDiscovery.enabled=false.
-- A future OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false environment variable is planned for users who want unspecified providers to default to disabled.
+- Discovery remains enabled by default unless a provider sets modelsDiscovery.enabled=false or OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false is set for unspecified providers.
 
 Preserve unrelated config fields and formatting as much as possible.
 Do not overwrite existing provider.<id>.options.modelsDiscovery fields unless the user explicitly asks you to.

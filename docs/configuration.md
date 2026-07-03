@@ -2,7 +2,7 @@
 
 This plugin discovers models for OpenAI-compatible providers and merges them into the active OpenCode config at startup.
 
-For new setups, use `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This keeps discovery rules close to the provider they affect and avoids older global rules unintentionally changing newer providers.
+Use `provider.<name>.options.modelsDiscovery` for provider-specific behavior. This is the only supported configuration boundary in `1.0.0`.
 
 OpenCode's own provider config still controls provider identity, npm package, `baseURL`, credentials, and provider availability. This plugin controls model discovery for providers that OpenCode has made available.
 
@@ -22,7 +22,9 @@ Each provider can configure discovery behavior through `provider.<name>.options.
         "modelsDiscovery": {
           "enabled": true,
           "models": {
-            "includeRegex": ["^llama"]
+            "includeBy": [
+              { "field": "id", "match": "^llama" }
+            ]
           },
           "smartModelName": true
         }
@@ -39,8 +41,10 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info endpoint path. Metadata enrichment is disabled when omitted |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` and `"models.dev"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
-| `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Provider-specific model include filter |
-| `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Provider-specific model exclude filter |
+| `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
+| `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
+| `provider.<name>.options.modelsDiscovery.models.includeBy` | `{ field: string, equals: string \| number \| boolean \| null }[]` or `{ field: string, match: string }[]` | Allow-list for top-level raw provider model fields |
+| `provider.<name>.options.modelsDiscovery.models.excludeBy` | `{ field: string, equals: string \| number \| boolean \| null }[]` or `{ field: string, match: string }[]` | Deny-list for top-level raw provider model fields |
 | `provider.<name>.options.modelsDiscovery.smartModelName` | `boolean` | Use human-friendly display names instead of raw discovered model ids |
 
 Recommended approach:
@@ -52,17 +56,75 @@ Recommended approach:
 
 If `provider.<name>.options.modelsDiscovery.endpoint` is omitted, the plugin uses `/v1/models`.
 
-## Priority Rules
+## Default Enablement
 
 1. `provider.<name>.options.modelsDiscovery.enabled = true` forces discovery for that provider.
 2. `provider.<name>.options.modelsDiscovery.enabled = false` disables discovery for that provider.
-3. If `enabled` is omitted, discovery follows the plugin default and compatibility detection.
-4. If a provider defines `modelsDiscovery.models` filters, those filters apply only to that provider.
+3. If `enabled` is omitted, `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED` controls the default when set.
+4. If the environment variable is omitted or invalid, the built-in default is `true`.
 5. OpenCode `enabled_providers` and `disabled_providers` control whether providers are available at all. This plugin does not override those OpenCode provider availability settings.
 
-## v0.12 Transition and v1.0 Compatibility
+Accepted false values are `false`, `0`, `no`, and `off`. Accepted true values are `true`, `1`, `yes`, and `on`. Invalid values warn and fall back to `true`.
 
-Version `0.12.x` still supports legacy plugin-level discovery configuration for compatibility, but new configuration should be provider-level. Plugin-level discovery options are planned for removal in `1.0.0`.
+## Model Filters
+
+Provider-level filters live under `provider.<name>.options.modelsDiscovery.models`.
+
+Prefer `includeBy` and `excludeBy` for model filtering. They work for `id` and for other top-level raw fields returned in the provider's `/v1/models` response.
+
+Use `includeBy` or `excludeBy` with `field: "id"` and `match` when filtering model ids by regex. This is the recommended form for new config.
+
+`includeRegex` and `excludeRegex` are retained as shortcuts for id-only regex filtering. They are regular expressions evaluated against the discovered model id and cannot filter non-id fields.
+
+Use `includeBy` and `excludeBy` when filtering by top-level fields returned in the provider's raw `/v1/models` response. Each rule must include exactly one of:
+
+- `equals`: strict equality against `string`, `number`, `boolean`, or `null` field values
+- `match`: regular expression matching against string field values
+
+```json
+{
+  "modelsDiscovery": {
+    "models": {
+      "excludeBy": [
+        { "field": "available", "equals": false },
+        { "field": "id", "match": "embedding" }
+      ],
+      "includeBy": [
+        { "field": "id", "match": "^deepseek" }
+      ]
+    }
+  }
+}
+```
+
+`includeBy` keeps a model when it matches at least one rule. `excludeBy` removes a model when it matches any rule, and exclusion wins when both include and exclude rules match. Missing fields do not match. Nested paths, type coercion, arrays, and objects are not supported.
+
+`includeBy` and `excludeBy` can replace `includeRegex` and `excludeRegex` for id filtering by using `field: "id"` with `match`.
+
+### Filter Order And Combination
+
+`includeBy` and `excludeBy` are cumulative. A model must pass `includeBy` first, then `excludeBy`, before it can be injected.
+
+Recommended field-filter order is:
+
+1. `includeBy`
+2. `excludeBy`
+
+Within that order:
+
+- `includeBy` is an allow-list: when configured, a model must match at least one rule.
+- `excludeBy` is a deny-list: when a model matches any rule, it is removed.
+- `excludeBy` wins over `includeBy` when both match the same model.
+
+`includeRegex` and `excludeRegex` are retained as legacy id-only shortcuts. They are not fully cumulative with each other: when `includeRegex` is configured, the model id only needs to match `includeRegex`, and `excludeRegex` is not applied. `excludeRegex` is applied only when `includeRegex` is not configured.
+
+Prefer `includeBy` and `excludeBy` with `field: "id"` and `match` when you need both allow-list and deny-list regex behavior for model ids.
+
+Provider-specific raw fields such as `available` are not part of the generic OpenAI-compatible model list contract. The plugin does not hardcode provider-specific behavior; use `includeBy` or `excludeBy` only when your provider returns the field.
+
+## Legacy Global Config
+
+Version `1.0.0` ignores legacy plugin-level discovery configuration at runtime. It still detects legacy config so users can migrate.
 
 Legacy plugin-level options:
 
@@ -73,16 +135,11 @@ Legacy plugin-level options:
 - `models.excludeRegex`
 - `smartModelName`
 
-When deprecated global config is detected, `0.12.x` logs a warning, shows a toast, and injects `/models-discovery:migrate` to guide migration.
+When legacy global config is detected, the plugin logs a warning, shows a toast, and injects `/models-discovery:migrate` to guide migration. The legacy fields do not change discovery behavior.
 
-Planned `1.0.0` behavior:
+Use `/models-discovery:config` for assistant-guided provider-level setup. Use `/models-discovery:migrate` when legacy plugin-level config is detected.
 
-- Plugin-level discovery config is removed.
-- Discovery remains enabled by default for compatible providers.
-- `provider.<name>.options.modelsDiscovery.enabled = false` disables discovery for a specific provider.
-- `OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false` is planned for users who want providers without explicit config to default to disabled.
-
-Use `/models-discovery:config` for assistant-guided provider-level setup. Use `/models-discovery:migrate` when `0.12.x` detects deprecated plugin-level config.
+Community provider examples live in [`docs/config_example/`](config_example/).
 
 ## Model Metadata Enrichment
 
@@ -217,7 +274,9 @@ For providers with custom metadata paths or non-standard behavior:
           "enabled": true,
           "endpoint": "/v1/models",
           "models": {
-            "includeRegex": ["^gpt-"]
+            "includeBy": [
+              { "field": "id", "match": "^gpt-" }
+            ]
           },
           "smartModelName": true
         }
@@ -245,7 +304,7 @@ For providers with custom metadata paths or non-standard behavior:
 In this example:
 
 1. `lmstudio` explicitly enables discovery and uses the default `/v1/models` endpoint.
-2. `lmstudio` limits discovery to models matching `^gpt-`.
+2. `lmstudio` limits discovery to model ids matching `^gpt-` with `includeBy`.
 3. `deepseek` explicitly enables discovery but uses `"/models"` instead of `/v1/models`.
 4. The API key uses an example placeholder and should be replaced in real configs.
 
@@ -264,7 +323,9 @@ In this example:
         "modelsDiscovery": {
           "enabled": true,
           "models": {
-            "includeRegex": ["^qwen/"]
+            "includeBy": [
+              { "field": "id", "match": "^qwen/" }
+            ]
           }
         }
       }
@@ -318,7 +379,7 @@ For new configs, enable or disable discovery on the provider itself:
 }
 ```
 
-Legacy plugin-level provider filters are still supported in `0.12.x`, but are deprecated:
+Legacy plugin-level provider filters are ignored in `1.0.0` and are shown here only to help identify config that should be migrated:
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -338,16 +399,18 @@ Legacy plugin-level provider filters are still supported in `0.12.x`, but are de
 }
 ```
 
-## Model Filtering
+## Model Filtering Reference
 
-Control which discovered models are auto-injected with provider-level regular expressions:
+Control which discovered models are auto-injected with provider-level field filters:
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | If non-empty, only discovered model ids matching at least one regex will be added for this provider |
-| `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Discovered model ids matching any regex will be skipped for this provider |
+| `provider.<name>.options.modelsDiscovery.models.includeBy` | `{ field: string, equals: string \| number \| boolean \| null }[]` or `{ field: string, match: string }[]` | If non-empty, only discovered models matching at least one rule will be added for this provider |
+| `provider.<name>.options.modelsDiscovery.models.excludeBy` | `{ field: string, equals: string \| number \| boolean \| null }[]` or `{ field: string, match: string }[]` | Discovered models matching any rule will be skipped for this provider |
+| `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Id-only shortcut for `includeBy` with `field: "id"` and `match` |
+| `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Id-only shortcut for `excludeBy` with `field: "id"` and `match` |
 
-Regex filtering only applies to auto-discovered models. Models already explicitly configured by the user are preserved.
+Filtering only applies to auto-discovered models. Models already explicitly configured by the user are preserved.
 
 ```json
 {
@@ -356,8 +419,12 @@ Regex filtering only applies to auto-discovered models. Models already explicitl
       "options": {
         "modelsDiscovery": {
           "models": {
-            "includeRegex": ["^qwen/", "gpt-4"],
-            "excludeRegex": ["embedding", "test"]
+            "includeBy": [
+              { "field": "id", "match": "^qwen/|gpt-4" }
+            ],
+            "excludeBy": [
+              { "field": "id", "match": "embedding|test" }
+            ]
           }
         }
       }
@@ -366,4 +433,4 @@ Regex filtering only applies to auto-discovered models. Models already explicitl
 }
 ```
 
-Legacy plugin-level model filters are still supported in `0.12.x`, but are deprecated.
+Legacy plugin-level model filters are ignored in `1.0.0`. Move them to `provider.<name>.options.modelsDiscovery.models` when you still need those filters. Prefer migrating regex id filters to `includeBy`/`excludeBy` rules using `field: "id"` and `match`; provider-level `includeRegex`/`excludeRegex` remain available as id-only shortcuts.

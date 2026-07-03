@@ -68,6 +68,7 @@ describe('ModelDiscovery Plugin', () => {
     delete process.env.OPENCODE_PID
     delete process.env.MIMOCODE
     delete process.env.MIMOCODE_PID
+    delete process.env.OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED
 
     mockClient = {
       app: {
@@ -105,6 +106,7 @@ describe('ModelDiscovery Plugin', () => {
     delete process.env.OPENCODE_PID
     delete process.env.MIMOCODE
     delete process.env.MIMOCODE_PID
+    delete process.env.OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED
     vi.restoreAllMocks()
   })
 
@@ -250,8 +252,9 @@ describe('ModelDiscovery Plugin', () => {
         expect(config.command['models-discovery:config'].template).toContain('OpenCode /connect credentials')
         expect(config.command['models-discovery:config'].template).toContain('@ai-sdk/openai-compatible')
         expect(config.command['models-discovery:config'].template).toContain('non-standard models paths should set modelsDiscovery.endpoint')
-        expect(config.command['models-discovery:config'].template).toContain('v0.12.x still supports deprecated plugin-level discovery config')
-        expect(config.command['models-discovery:config'].template).toContain('v1.0.0 will remove plugin-level discovery config')
+        expect(config.command['models-discovery:config'].template).toContain('v1.0.0 ignores plugin-level global discovery config at runtime')
+        expect(config.command['models-discovery:config'].template).toContain('includeBy')
+        expect(config.command['models-discovery:config'].template).toContain('excludeBy')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="models.dev"')
         expect(config.command['models-discovery:config'].template).toContain('modelInfoFormat="litellm"')
         expect(config.command['models-discovery:config'].template).toContain('restart opencode')
@@ -271,7 +274,7 @@ describe('ModelDiscovery Plugin', () => {
           body: expect.objectContaining({
             title: 'Discovery Config Migration',
             variant: 'warning',
-            message: expect.stringContaining('Global opencode-models-discovery config will be deprecated in v1.0.0')
+            message: expect.stringContaining('Global opencode-models-discovery config is no longer applied in v1.0.0')
           })
         })
 
@@ -292,7 +295,7 @@ describe('ModelDiscovery Plugin', () => {
         expect(mockClient.app.log).toHaveBeenCalledWith(expect.objectContaining({
           body: expect.objectContaining({
             level: 'warn',
-            message: 'Legacy global discovery configuration is deprecated',
+            message: 'Legacy global opencode-models-discovery config was detected but is ignored in v1.0.0. Use provider.<name>.options.modelsDiscovery instead.',
             extra: expect.objectContaining({
               category: 'config',
               migrationCommand: '/models-discovery:migrate'
@@ -337,6 +340,53 @@ describe('ModelDiscovery Plugin', () => {
         template: expect.stringContaining('Use the customize-opencode skill.'),
       }))
       expect(config.command['models-discovery:migrate']).toBeUndefined()
+    })
+
+    it('should warn when includeBy or excludeBy are placed outside modelsDiscovery.models', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: []
+        })
+      })
+
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                includeBy: [
+                  { field: 'id', match: '^deepseek-' }
+                ],
+                excludeBy: [
+                  { field: 'id', match: 'embedding' }
+                ]
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockClient.app.log).toHaveBeenCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          service: 'opencode-models-discovery',
+          level: 'warn',
+          message: 'Config warnings',
+          extra: expect.objectContaining({
+            category: 'config',
+            warnings: expect.arrayContaining([
+              "Provider 'gateway' modelsDiscovery.includeBy is ignored; use modelsDiscovery.models.includeBy instead",
+              "Provider 'gateway' modelsDiscovery.excludeBy is ignored; use modelsDiscovery.models.excludeBy instead"
+            ])
+          })
+        })
+      }))
     })
 
     it('should not overwrite existing migration and config commands', async () => {
@@ -1124,34 +1174,23 @@ describe('ModelDiscovery Plugin', () => {
         })
       })
 
-      const hooksWithConfig = await ModelDiscoveryPlugin({
-        client: mockClient,
-        project: {
-          id: 'test-project',
-          name: 'test',
-          path: '/tmp',
-          worktree: '',
-          time: { created: Date.now() }
-        },
-        directory: '/tmp',
-        worktree: '',
-        $: vi.fn()
-      }, {
-        smartModelName: true
-      })
-
       const config: any = {
         provider: {
           ollama: {
             npm: '@ai-sdk/openai-compatible',
             name: 'Ollama',
-            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            options: {
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: {
+                smartModelName: true
+              }
+            },
             models: {}
           }
         }
       }
 
-      await hooksWithConfig.config(config)
+      await pluginHooks.config(config)
 
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toEqual(
         expect.objectContaining({
@@ -1233,7 +1272,7 @@ describe('ModelDiscovery Plugin', () => {
       }))
     })
 
-    it('should skip providers in exclude list', async () => {
+    it('should ignore legacy providers.exclude at runtime', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1276,10 +1315,10 @@ describe('ModelDiscovery Plugin', () => {
 
       await hooksWithConfig.config(config)
 
-      // Filter check happens silently
+      expect(config.provider?.ollama?.models?.['test-model']).toBeDefined()
     })
 
-    it('should only discover providers in include list', async () => {
+    it('should ignore legacy providers.include at runtime', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1329,10 +1368,10 @@ describe('ModelDiscovery Plugin', () => {
       await hooksWithConfig.config(config)
 
       expect(config.provider?.lmstudio?.models?.['test-model']).toBeDefined()
-      expect(config.provider?.ollama?.models).toEqual({})
+      expect(config.provider?.ollama?.models?.['test-model']).toBeDefined()
     })
 
-    it('should skip discovery when discovery.enabled is false', async () => {
+    it('should ignore legacy discovery.enabled=false at runtime', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1375,10 +1414,10 @@ describe('ModelDiscovery Plugin', () => {
 
       await hooksWithConfig.config(config)
 
-      expect(config.provider?.ollama?.models).toEqual({})
+      expect(config.provider?.ollama?.models?.['test-model']).toBeDefined()
     })
 
-    it('should allow provider-level discovery when global discovery is disabled', async () => {
+    it('should allow provider-level discovery when legacy global discovery is disabled', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1514,7 +1553,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider?.ollama?.models).toEqual({})
     })
 
-    it('should only discover models matching includeRegex', async () => {
+    it('should ignore legacy global model includeRegex at runtime', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1559,10 +1598,10 @@ describe('ModelDiscovery Plugin', () => {
       await hooksWithConfig.config(config)
 
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
-      expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+      expect(config.provider.ollama.models['bge-m3']).toBeDefined()
     })
 
-    it('should skip models matching excludeRegex', async () => {
+    it('should ignore legacy global model excludeRegex at runtime', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1607,7 +1646,7 @@ describe('ModelDiscovery Plugin', () => {
       await hooksWithConfig.config(config)
 
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
-      expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+      expect(config.provider.ollama.models['bge-m3']).toBeDefined()
     })
 
     it('should preserve explicitly configured models even when regex would filter them out', async () => {
@@ -1660,7 +1699,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.ollama.models['discover-me']).toBeDefined()
     })
 
-    it('should prefer provider-level model filters over global filters', async () => {
+    it('should use provider-level model filters and smart model names', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1721,7 +1760,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
     })
 
-    it('should use global model filters when provider-level filters are not configured', async () => {
+    it('should ignore legacy global model filters when provider-level filters are not configured', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -1770,7 +1809,257 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toBeDefined()
       expect(config.provider.ollama.models['qwen/qwen3-8b']).toBeDefined()
-      expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
+      expect(config.provider.ollama.models['bge-m3']).toBeDefined()
+    })
+
+    it('should use OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED=false only for unspecified providers', async () => {
+      process.env.OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED = 'false'
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'test-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          disabledByDefault: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Disabled By Default',
+            options: { baseURL: 'http://127.0.0.1:11434/v1' },
+            models: {}
+          },
+          explicitlyEnabled: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Explicitly Enabled',
+            options: {
+              baseURL: 'http://127.0.0.1:1234/v1',
+              modelsDiscovery: { enabled: true }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.disabledByDefault.models).toEqual({})
+      expect(config.provider.explicitlyEnabled.models['test-model']).toBeDefined()
+    })
+
+    it('should let explicit provider-level enabled=false override env default true', async () => {
+      process.env.OPENCODE_MODELS_DISCOVERY_DEFAULT_ENABLED = 'true'
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'test-model', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          ollama: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Ollama',
+            options: {
+              baseURL: 'http://127.0.0.1:11434/v1',
+              modelsDiscovery: { enabled: false }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.ollama.models).toEqual({})
+    })
+
+    it('should filter models by provider-level includeBy and excludeBy raw fields', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'chat-available', object: 'model', created: 1234567890, owned_by: 'local', type: 'chat', available: true },
+            { id: 'chat-unavailable', object: 'model', created: 1234567890, owned_by: 'local', type: 'chat', available: false },
+            { id: 'embedding-available', object: 'model', created: 1234567890, owned_by: 'local', type: 'embedding', available: true },
+            { id: 'missing-fields', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                models: {
+                  includeBy: [{ field: 'type', equals: 'chat' }],
+                  excludeBy: [{ field: 'available', equals: false }]
+                }
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.gateway.models['chat-available']).toBeDefined()
+      expect(config.provider.gateway.models['chat-unavailable']).toBeUndefined()
+      expect(config.provider.gateway.models['embedding-available']).toBeUndefined()
+      expect(config.provider.gateway.models['missing-fields']).toBeUndefined()
+    })
+
+    it('should not treat nested field names as paths for includeBy', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'nested-only', object: 'model', created: 1234567890, owned_by: 'local', metadata: { type: 'chat' } },
+            { id: 'literal-field', object: 'model', created: 1234567890, owned_by: 'local', 'metadata.type': 'chat' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                models: {
+                  includeBy: [{ field: 'metadata.type', equals: 'chat' }]
+                }
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.gateway.models['nested-only']).toBeUndefined()
+      expect(config.provider.gateway.models['literal-field']).toBeDefined()
+    })
+
+    it('should reject invalid includeBy equals values', async () => {
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                models: {
+                  includeBy: [{ field: 'metadata', equals: { type: 'chat' } }]
+                }
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          service: 'opencode-models-discovery',
+          level: 'error',
+          message: 'Invalid config provided',
+          extra: expect.objectContaining({
+            category: 'config',
+            errors: expect.arrayContaining(["Provider 'gateway' modelsDiscovery.models.includeBy[0].equals must be a string, number, boolean, or null"])
+          })
+        })
+      }))
+    })
+
+    it('should filter models by provider-level includeBy and excludeBy regex matches', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'deepseek-chat', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'deepseek-reasoner', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'deepseek-embedding', object: 'model', created: 1234567890, owned_by: 'local' },
+            { id: 'qwen-chat', object: 'model', created: 1234567890, owned_by: 'local' }
+          ]
+        })
+      })
+
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                models: {
+                  includeBy: [{ field: 'id', match: '^deepseek-' }],
+                  excludeBy: [{ field: 'id', match: 'embedding$' }]
+                }
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.gateway.models['deepseek-chat']).toBeDefined()
+      expect(config.provider.gateway.models['deepseek-reasoner']).toBeDefined()
+      expect(config.provider.gateway.models['deepseek-embedding']).toBeUndefined()
+      expect(config.provider.gateway.models['qwen-chat']).toBeUndefined()
+    })
+
+    it('should reject field filters that specify both equals and match', async () => {
+      const config: any = {
+        provider: {
+          gateway: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Gateway',
+            options: {
+              baseURL: 'http://127.0.0.1:4000/v1',
+              modelsDiscovery: {
+                models: {
+                  excludeBy: [{ field: 'id', equals: 'test', match: '^test' }]
+                }
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockClient.app.log).toHaveBeenLastCalledWith(expect.objectContaining({
+        body: expect.objectContaining({
+          service: 'opencode-models-discovery',
+          level: 'error',
+          message: 'Invalid config provided',
+          extra: expect.objectContaining({
+            category: 'config',
+            errors: expect.arrayContaining(["Provider 'gateway' modelsDiscovery.models.excludeBy[0] must include exactly one of equals or match"])
+          })
+        })
+      }))
     })
   })
 
