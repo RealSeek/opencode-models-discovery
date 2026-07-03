@@ -1,7 +1,7 @@
 import { ToastNotifier } from '../ui/toast-notifier'
 import type { PluginLogger } from './logger'
 
-const LEGACY_GLOBAL_CONFIG_WARNING = 'Global opencode-models-discovery config will be deprecated in v1.0.0. Use provider.<name>.options.modelsDiscovery instead. Run /models-discovery:migrate to migrate config.'
+const LEGACY_GLOBAL_CONFIG_WARNING = 'Global opencode-models-discovery config is no longer applied in v1.0.0. Move settings to provider.<name>.options.modelsDiscovery or run /models-discovery:migrate.'
 const TOAST_RETRY_DELAYS_MS = [500, 1500, 3000, 5000]
 
 const TOAST_READY_EVENTS = new Set([
@@ -35,9 +35,9 @@ export function createLegacyGlobalConfigWarningController(): LegacyGlobalConfigW
 
       if (!logged) {
         logged = true
-        logger.warn('Legacy global discovery configuration is deprecated', {
+        logger.warn('Legacy global opencode-models-discovery config was detected but is ignored in v1.0.0. Use provider.<name>.options.modelsDiscovery instead.', {
           migrationCommand: '/models-discovery:migrate',
-          deprecatedIn: 'v1.0.0',
+          ignoredSince: 'v1.0.0',
         })
       }
     },

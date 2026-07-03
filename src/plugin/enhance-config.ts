@@ -5,7 +5,7 @@ import { ToastNotifier } from '../ui/toast-notifier'
 import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
-import { getProviderFilter, getDiscoveryConfig, getModelRegexFilter, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
+import { getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import { fetchModelsDevData } from '../utils/models-dev-fetcher'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -175,10 +175,8 @@ export async function enhanceConfig(
   try {
     const providers = config.provider || {}
     const openAICompatibleProviders: DiscoveredProvider[] = []
-    const providerFilter = getProviderFilter(pluginConfig)
-    const modelRegexFilter = getModelRegexFilter(pluginConfig, logger.child({ category: 'filtering' }))
-    const discoveryConfig = getDiscoveryConfig(pluginConfig)
-    const globalDiscoveryEnabled = discoveryConfig.enabled
+    const discoveryConfig = getDefaultDiscoveryConfigFromEnv(logger.child({ category: 'config' }))
+    const defaultDiscoveryEnabled = discoveryConfig.enabled
     const resolvedProvidersLoader: ResolvedProvidersLoader = {}
 
     for (const [providerName, providerConfig] of Object.entries(providers)) {
@@ -194,7 +192,7 @@ export async function enhanceConfig(
         continue
       }
 
-      if (!shouldDiscoverProviderWithOverride(providerName, providerFilter, globalDiscoveryEnabled, providerDiscoveryConfig)) {
+      if (!shouldDiscoverProviderWithOverride(defaultDiscoveryEnabled, providerDiscoveryConfig)) {
         logger.debug(`Provider ${providerName} model discovery disabled by configuration`)
         continue
       }
@@ -260,25 +258,26 @@ export async function enhanceConfig(
 
       const hasProviderModelRegexFilter = !!providerDiscoveryConfig.models?.includeRegex?.length || !!providerDiscoveryConfig.models?.excludeRegex?.length
       const providerModelRegexFilter = getProviderModelRegexFilter(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
-      let smartModelNameEnabled = providerDiscoveryConfig.smartModelName
-      if (smartModelNameEnabled === undefined) {
-        smartModelNameEnabled = pluginConfig.smartModelName
-      }
+      const providerModelFieldFilters = getProviderModelFieldFilters(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
+      const smartModelNameEnabled = providerDiscoveryConfig.smartModelName === true
 
       for (const model of models) {
         const modelKey = model.id
         if (!existingModels[modelKey]) {
-          const activeModelRegexFilter = hasProviderModelRegexFilter ? providerModelRegexFilter : modelRegexFilter
-          if (!shouldDiscoverModel(model.id, activeModelRegexFilter)) {
+          if (!shouldDiscoverModelByFields(model, providerModelFieldFilters)) {
             continue
           }
 
-          if (modelInfoEnricher?.shouldSkipModel(model.id)) {
+          if (hasProviderModelRegexFilter && !shouldDiscoverModel(model.id, providerModelRegexFilter)) {
             continue
           }
 
           const modelType = categorizeModel(model.id)
           if (modelType === 'embedding') {
+            continue
+          }
+
+          if (modelInfoEnricher?.shouldSkipModel(model.id)) {
             continue
           }
 

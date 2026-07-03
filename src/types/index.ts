@@ -3,6 +3,7 @@ export interface OpenAIModel {
   object: string
   created: number
   owned_by: string
+  [key: string]: unknown
 }
 
 export interface OpenAIModelsResponse {
