@@ -17,3 +17,24 @@ Do not paste secrets into public issues or pull requests. Configure provider cre
 ## Examples
 
 - [DeepSeek](deepseek.md)
+
+## Community Example PR Scope
+
+Community provider example PRs are welcome, but they must stay narrowly scoped. Submit these PRs against the `community/config-examples` branch unless maintainers request another target.
+
+Acceptable changes for a provider example PR:
+
+- Add a new Markdown file under `docs/config_example/`.
+- Add one link to that new file in this README's examples list.
+
+Do not include unrelated changes in provider example PRs. In particular, do not modify runtime source code, package metadata, release files, workflows, tests, or general documentation outside `docs/config_example/`.
+
+Each example should:
+
+- Use provider-level `provider.<id>.options.modelsDiscovery` config.
+- Prefer `models.includeBy` and `models.excludeBy` over `includeRegex` and `excludeRegex`.
+- Avoid secrets, tokens, API keys, account IDs, or private URLs.
+- Include a provider-specific disclaimer that this project is not affiliated with, endorsed by, or sponsored by that provider.
+- Ask users to verify current API endpoints, pricing, terms of service, data handling, and regional availability.
+
+Maintainers may close or request changes on PRs that exceed this scope, add promotional language, include secrets, or present provider examples as official endorsements.

@@ -198,6 +198,8 @@ This keeps the same provider configuration model while allowing the plugin to wo
 - Provider compatibility and detection rules: [`docs/providers.md`](docs/providers.md)
 - Upgrade notes: [`docs/upgrading.md`](docs/upgrading.md)
 
+Provider users are welcome to contribute community-maintained configuration examples under [`docs/config_example/`](docs/config_example/). Please target the `community/config-examples` branch and keep example PRs scoped to a new example file plus its README link.
+
 ## Requirements
 
 - OpenCode with plugin support
