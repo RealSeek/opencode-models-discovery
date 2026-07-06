@@ -60,11 +60,28 @@ describe('models.dev fetcher', () => {
     expect(lookupModelsDevData('openai/gpt-4o-2024-11-20', cache)?.id).toBe('openai/gpt-4o')
   })
 
-  it('should avoid cross-provider model-only matches when provider is present', () => {
+  it('should match model names without requiring the provider to match', () => {
     const cache = modelsDevTestUtils.parseModelsDevData({
       openai: {
         models: {
           'shared-model': { id: 'shared-model', tool_call: true }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('custom/shared-model', cache)?.id).toBe('openai/shared-model')
+  })
+
+  it('should not match ambiguous duplicate model names', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      providerA: {
+        models: {
+          'shared-model': { id: 'shared-model', tool_call: true }
+        }
+      },
+      providerB: {
+        models: {
+          'shared-model': { id: 'shared-model', tool_call: false }
         }
       }
     })
@@ -94,5 +111,22 @@ describe('models.dev fetcher', () => {
     })
 
     expect(lookupModelsDevData('openai/gpt-4o-2024-11-20', cache)).toBeUndefined()
+  })
+
+  it('should not match ambiguous tied prefix candidates', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      providerA: {
+        models: {
+          'shared-model-alpha': { id: 'shared-model-alpha', tool_call: true }
+        }
+      },
+      providerB: {
+        models: {
+          'shared-model-beta': { id: 'shared-model-beta', tool_call: false }
+        }
+      }
+    })
+
+    expect(lookupModelsDevData('custom/shared-model', cache)).toBeUndefined()
   })
 })
