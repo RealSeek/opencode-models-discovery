@@ -284,7 +284,7 @@ export async function enhanceConfig(
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
-            name: smartModelNameEnabled ? formatModelName(model) : model.id,
+            name: smartModelNameEnabled ? modelInfoEnricher?.getModelName?.(model.id) ?? formatModelName(model) : model.id,
           }
 
           if (owner) {
