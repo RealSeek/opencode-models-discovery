@@ -88,20 +88,18 @@ Those fields may be useful later, but they should not be added to generated Open
 
 ## Matching Strategy
 
-The matcher is intentionally conservative.
+The matcher is intentionally based on model names, not provider ids, so custom provider ids can still use models.dev metadata.
 
 Exact id matches are preferred first.
 
-Provider-qualified model ids stay within the same provider. For example, `openai/gpt-4o` may match `openai/gpt-4o`, but `custom/gpt-4o` will not fall back to `openai/gpt-4o` just because the model name is the same.
+Provider-qualified model ids may match models.dev entries from a different provider when the model-name segment is the same. For example, `custom/gpt-4o` may match the models.dev `openai/gpt-4o` entry by model name.
 
-Model-only matches are allowed only when the discovered model id has no provider prefix. For example, `gpt-4o` may match a known `openai/gpt-4o` entry, but `custom/gpt-4o` will not.
-
-Prefix matching is limited to strong variants within the same provider. It requires:
+Prefix matching is limited to strong model-name variants. It requires:
 
 - at least two shared hyphen-delimited prefix parts
 - a score of at least `70`
 
-This allows date-suffixed variants such as `openai/gpt-4o-2024-11-20` to match `openai/gpt-4o`, while avoiding broad matches such as `gpt` to `gpt-4o-2024-11-20`.
+This allows date-suffixed variants such as `custom/gpt-4o-2024-11-20` to match `openai/gpt-4o`, while avoiding broad matches such as `gpt` to `gpt-4o-2024-11-20`.
 
 ## Failure Behavior
 
@@ -153,9 +151,8 @@ The implementation includes tests for:
 - provider-nested models.dev schema parsing
 - flat model-id keyed models.dev schema parsing
 - exact matches
-- same-provider prefix matches
-- avoiding cross-provider model-only matches
-- allowing model-only matches only when no provider prefix is present
+- model-name-only matches across provider ids
+- strong model-name prefix matches
 - rejecting weak prefix matches
 
 Current verification:

@@ -162,6 +162,6 @@ This setting is explicit because models.dev is an external metadata source. With
 
 This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/).
 
-When a safe match exists, models.dev metadata can add model limits and capabilities such as `tool_call`, `reasoning`, `attachment`, `structured_output`, `temperature`, and `modalities`.
+When a safe model-name match exists, models.dev metadata can add model limits and capabilities such as `tool_call`, `reasoning`, `attachment`, `structured_output`, `temperature`, and `modalities`.
 
 This means providers using `@ai-sdk/anthropic` with OpenAI-compatible backends are supported when the `baseURL` contains `/v1/`, when a provider-specific discovery endpoint is configured, or when provider-level discovery is explicitly forced on. It also means providers like DeepSeek can be discovered from a non-`/v1` baseURL as long as the models endpoint is configured explicitly.

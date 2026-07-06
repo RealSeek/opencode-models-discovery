@@ -229,9 +229,8 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 Matching is intentionally conservative:
 
 - Exact model ids are preferred.
-- Provider-qualified matches stay within the same provider.
-- Model-only matches are used only when the discovered model id has no provider prefix.
-- Prefix matching is limited to strong same-provider variants, such as date-suffixed model ids.
+- Provider ids are not used for models.dev matching; only the model-name segment is matched.
+- Prefix matching is limited to strong model-name variants, such as date-suffixed model ids.
 
 If models.dev cannot be fetched, or if no safe match is found, discovery still succeeds and the plugin leaves metadata fields unset. It does not inject hardcoded default context or output limits for unknown models.
 
