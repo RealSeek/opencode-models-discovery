@@ -1028,6 +1028,109 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.openai.models['unknown/local-model']).not.toHaveProperty('tool_call')
     })
 
+    it('should use models.dev display names for custom provider smart names', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              { id: 'custom/gpt-4o', object: 'model', created: 1234567890, owned_by: 'local' }
+            ]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            openai: {
+              models: {
+                'gpt-4o': {
+                  id: 'gpt-4o',
+                  name: 'GPT-4o',
+                  tool_call: true,
+                  limit: { context: 128000 }
+                }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Custom',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev',
+                smartModelName: true
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.custom.models['custom/gpt-4o']).toEqual(expect.objectContaining({
+        id: 'custom/gpt-4o',
+        name: 'GPT-4o',
+        tool_call: true,
+        limit: { context: 128000 }
+      }))
+    })
+
+    it('should keep raw ids when models.dev has names but smart model names are disabled', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [
+              { id: 'custom/gpt-4o', object: 'model', created: 1234567890, owned_by: 'local' }
+            ]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            openai: {
+              models: {
+                'gpt-4o': {
+                  id: 'gpt-4o',
+                  name: 'GPT-4o',
+                  tool_call: true
+                }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            name: 'Custom',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(config.provider.custom.models['custom/gpt-4o']).toEqual(expect.objectContaining({
+        id: 'custom/gpt-4o',
+        name: 'custom/gpt-4o',
+        tool_call: true
+      }))
+    })
+
     it('should continue discovery when models.dev metadata cannot be fetched', async () => {
       mockFetch
         .mockResolvedValueOnce({

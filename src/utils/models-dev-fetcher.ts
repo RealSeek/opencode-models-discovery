@@ -143,45 +143,35 @@ export function lookupModelsDevData(
   const exactMatch = cache.get(modelId) ?? cache.get(modelId.toLowerCase())
   if (exactMatch) return exactMatch
 
-  const requested = splitModelId(modelId)
-  const requestedModelLower = requested.model.toLowerCase()
-  const sameProviderCandidates: Array<[string, ModelsDevModel]> = []
+  const requestedModelLower = splitModelId(modelId).model.toLowerCase()
   const allCandidates: Array<[string, ModelsDevModel]> = []
 
   for (const [key, value] of cache.entries()) {
     const candidate = splitModelId(key)
     const candidateModelLower = candidate.model.toLowerCase()
-    const entry: [string, ModelsDevModel] = [candidateModelLower, value]
-    allCandidates.push(entry)
-
-    if (requested.provider && candidate.provider === requested.provider) {
-      sameProviderCandidates.push(entry)
-    }
+    allCandidates.push([candidateModelLower, value])
   }
 
-  for (const [candidateModel, value] of sameProviderCandidates) {
-    if (candidateModel === requestedModelLower) return value
-  }
+  const exactModelMatches = allCandidates.filter(([candidateModel]) => candidateModel === requestedModelLower)
+  if (exactModelMatches.length === 1) return exactModelMatches[0]?.[1]
+  if (exactModelMatches.length > 1) return undefined
 
-  if (!requested.provider) {
-    for (const [candidateModel, value] of allCandidates) {
-      if (candidateModel === requestedModelLower) return value
-    }
-  }
-
-  const prefixCandidates = sameProviderCandidates.length > 0 ? sameProviderCandidates : requested.provider ? [] : allCandidates
   let bestMatch: ModelsDevModel | undefined
   let bestScore = 0
+  let bestScoreMatches = 0
 
-  for (const [candidateModel, value] of prefixCandidates) {
+  for (const [candidateModel, value] of allCandidates) {
     const score = calculatePrefixScore(requestedModelLower, candidateModel)
     if (score >= PREFIX_MATCH_MIN_SCORE && score > bestScore) {
       bestScore = score
       bestMatch = value
+      bestScoreMatches = 1
+    } else if (score >= PREFIX_MATCH_MIN_SCORE && score === bestScore) {
+      bestScoreMatches++
     }
   }
 
-  return bestMatch
+  return bestScoreMatches === 1 ? bestMatch : undefined
 }
 
 export const modelsDevTestUtils = {

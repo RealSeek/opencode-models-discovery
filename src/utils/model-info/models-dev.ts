@@ -38,6 +38,9 @@ export function createModelsDevModelInfoEnricher(data: unknown): ModelInfoEnrich
     shouldSkipModel(): boolean {
       return false
     },
+    getModelName(modelId: string): string | undefined {
+      return lookupModelsDevData(modelId, cache)?.name
+    },
     applyModelInfo(modelConfig: any, modelId: string): void {
       applyModelsDevModelInfo(modelConfig, lookupModelsDevData(modelId, cache))
     },
