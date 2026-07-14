@@ -12,43 +12,6 @@ export function extractModelOwner(modelId: string): string | undefined {
 }
 
 /**
- * Format model gateway and provider prefix based on segments
- */
-export function formatModelPrefix(modelId: string): string | undefined {
-  const parts = modelId.split('/')
-  if (parts.length >= 3) {
-    const gateway = formatProviderName(parts[0])
-    const provider = formatProviderName(parts[parts.length - 2])
-    return `${gateway} - ${provider}`
-  } else if (parts.length === 2) {
-    return formatProviderName(parts[0])
-  }
-  return undefined
-}
-
-/**
- * Format provider name for display
- */
-export function formatProviderName(provider: string): string {
-  const lower = provider.toLowerCase()
-  if (lower === 'opencode' || lower === 'opencode-zen') {
-    return 'OpenCode'
-  }
-  if (lower === 'openai') {
-    return 'OpenAI'
-  }
-  if (lower === 'openrouter') {
-    return 'OpenRouter'
-  }
-  
-  return provider
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map(token => token.charAt(0).toUpperCase() + token.slice(1).toLowerCase())
-    .join(' ')
-}
-
-/**
  * Format model name for display using available metadata
  * Creates readable titles like "Qwen3 30B A3B" instead of "qwen/qwen3-30b-a3b"
  */
@@ -57,7 +20,7 @@ export function formatModelName(model: OpenAIModel): string {
   
   // Extract parts from model ID
   const parts = id.split('/')
-  const modelPart = parts.length > 1 ? parts[parts.length - 1] : parts[0]
+  const modelPart = parts.length > 1 ? parts[1] : parts[0]
   
   // Common acronyms that should be uppercase
   const acronyms = new Set(['gpt', 'oss', 'api', 'gguf', 'ggml', 'nomic', 'vl', 'it', 'mlx'])

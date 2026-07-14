@@ -1075,7 +1075,7 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider.custom.models['custom/gpt-4o']).toEqual(expect.objectContaining({
         id: 'custom/gpt-4o',
-        name: 'Custom - GPT-4o',
+        name: 'GPT-4o',
         tool_call: true,
         limit: { context: 128000 }
       }))
@@ -1298,7 +1298,7 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toEqual(
         expect.objectContaining({
           id: 'qwen/qwen3-30b-a3b',
-          name: 'Qwen - Qwen3 30B A3B'
+          name: 'Qwen3 30B A3B'
         })
       )
     })
@@ -1857,7 +1857,7 @@ describe('ModelDiscovery Plugin', () => {
 
       expect(config.provider.ollama.models['qwen/qwen3-30b-a3b']).toEqual(
         expect.objectContaining({
-          name: 'Qwen - Qwen3 30B A3B'
+          name: 'Qwen3 30B A3B'
         })
       )
       expect(config.provider.ollama.models['bge-m3']).toBeUndefined()
@@ -2129,44 +2129,6 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.gateway.models['deepseek-reasoner']).toBeDefined()
       expect(config.provider.gateway.models['deepseek-embedding']).toBeUndefined()
       expect(config.provider.gateway.models['qwen-chat']).toBeUndefined()
-    })
-
-    it('should filter/remove existing models that do not match the includeBy / excludeBy filters', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          data: [
-            { id: 'llama-3-8b', object: 'model', created: 1234567890, owned_by: 'local' },
-            { id: 'qwen-7b', object: 'model', created: 1234567890, owned_by: 'local' }
-          ]
-        })
-      })
-
-      const config: any = {
-        provider: {
-          gateway: {
-            npm: '@ai-sdk/openai-compatible',
-            name: 'Gateway',
-            options: {
-              baseURL: 'http://127.0.0.1:4000/v1',
-              modelsDiscovery: {
-                models: {
-                  includeBy: [{ field: 'id', match: '^llama' }]
-                }
-              }
-            },
-            models: {
-              'llama-3-8b': { id: 'llama-3-8b', name: 'Llama 3' },
-              'qwen-7b': { id: 'qwen-7b', name: 'Qwen 7B' }
-            }
-          }
-        }
-      }
-
-      await pluginHooks.config(config)
-
-      expect(config.provider.gateway.models['llama-3-8b']).toBeDefined()
-      expect(config.provider.gateway.models['qwen-7b']).toBeUndefined()
     })
 
     it('should reject field filters that specify both equals and match', async () => {

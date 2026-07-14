@@ -60,6 +60,22 @@ describe('models.dev fetcher', () => {
     expect(lookupModelsDevData('openai/gpt-4o-2024-11-20', cache)?.id).toBe('openai/gpt-4o')
   })
 
+  it('should normalize gateway prefixes and provider variants before lookup', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      'moonshotai/kimi-k2.6': {
+        name: 'Kimi K2.6',
+        modalities: { input: ['text', 'image'], output: ['text'] }
+      },
+      'deepseek/deepseek-v4-flash': {
+        name: 'DeepSeek V4 Flash',
+        reasoning: true
+      }
+    })
+
+    expect(lookupModelsDevData('openrouter/moonshotai/kimi-k2.6:free', cache)?.id).toBe('moonshotai/kimi-k2.6')
+    expect(lookupModelsDevData('gateway/deepseek/deepseek-v4-flash', cache)?.id).toBe('deepseek/deepseek-v4-flash')
+  })
+
   it('should match model id segments without requiring the provider to match', () => {
     const cache = modelsDevTestUtils.parseModelsDevData({
       openai: {

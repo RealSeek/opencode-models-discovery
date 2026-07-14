@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { xdgData } from 'xdg-basedir'
 import { ToastNotifier } from '../ui/toast-notifier'
-import { categorizeModel, formatModelName, extractModelOwner, formatModelPrefix, formatProviderName } from '../utils'
+import { categorizeModel, formatModelName, extractModelOwner } from '../utils'
 import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProvider, canDiscoverModels } from '../utils/openai-compatible-api'
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
@@ -252,10 +252,9 @@ export async function enhanceConfig(
         }
       }
 
-      const existingModels = { ...(p.models || {}) }
+      const existingModels = p.models || {}
       const discoveredModels: Record<string, any> = {}
       let chatModelsCount = 0
-      let modifiedExisting = false
 
       const hasProviderModelRegexFilter = !!providerDiscoveryConfig.models?.includeRegex?.length || !!providerDiscoveryConfig.models?.excludeRegex?.length
       const providerModelRegexFilter = getProviderModelRegexFilter(providerDiscoveryConfig, logger.child({ category: 'filtering' }))
@@ -264,48 +263,15 @@ export async function enhanceConfig(
 
       for (const model of models) {
         const modelKey = model.id
-
-        const matchesFields = shouldDiscoverModelByFields(model, providerModelFieldFilters)
-        const matchesRegex = !hasProviderModelRegexFilter || shouldDiscoverModel(model.id, providerModelRegexFilter)
-
-        if (!matchesFields || !matchesRegex) {
-          if (existingModels[modelKey]) {
-            delete existingModels[modelKey]
-            modifiedExisting = true
-          }
-          continue
-        }
-
-        const parts = model.id.split('/')
-        const fallbackName = formatModelName(model)
-        const buggedName = parts.length > 2 ? formatModelName({ id: parts[0] + '/' + parts[1] } as any) : null
-
-        let newName = model.id
-        let rawSmartName = fallbackName
-        if (smartModelNameEnabled) {
-          rawSmartName = modelInfoEnricher?.getModelName?.(model.id) ?? fallbackName
-          const formattedPrefix = formatModelPrefix(model.id)
-          newName = formattedPrefix ? `${formattedPrefix} - ${rawSmartName}` : rawSmartName
-        }
-
-        if (existingModels[modelKey]) {
-          const currentModel = existingModels[modelKey]
-          const isGenericName = currentModel.name === model.id || 
-                                (buggedName && currentModel.name === buggedName) ||
-                                (smartModelNameEnabled && currentModel.name === fallbackName) ||
-                                (smartModelNameEnabled && currentModel.name === rawSmartName)
-
-          if (isGenericName && currentModel.name !== newName) {
-            currentModel.name = newName
-            modifiedExisting = true
+        if (!existingModels[modelKey]) {
+          if (!shouldDiscoverModelByFields(model, providerModelFieldFilters)) {
+            continue
           }
 
-          const beforeStr = JSON.stringify(currentModel)
-          modelInfoEnricher?.applyModelInfo(currentModel, model.id)
-          if (JSON.stringify(currentModel) !== beforeStr) {
-            modifiedExisting = true
+          if (hasProviderModelRegexFilter && !shouldDiscoverModel(model.id, providerModelRegexFilter)) {
+            continue
           }
-        } else {
+
           const modelType = categorizeModel(model.id)
           if (modelType === 'embedding') {
             continue
@@ -318,7 +284,7 @@ export async function enhanceConfig(
           const owner = extractModelOwner(model.id)
           const modelConfig: any = {
             id: model.id,
-            name: newName,
+            name: smartModelNameEnabled ? modelInfoEnricher?.getModelName?.(model.id) ?? formatModelName(model) : model.id,
           }
 
           if (owner) {
@@ -339,7 +305,7 @@ export async function enhanceConfig(
         }
       }
 
-      if (Object.keys(discoveredModels).length > 0 || modifiedExisting) {
+      if (Object.keys(discoveredModels).length > 0) {
         p.models = {
           ...existingModels,
           ...discoveredModels,

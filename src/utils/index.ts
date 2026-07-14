@@ -1,4 +1,4 @@
-export { formatModelName, extractModelOwner, formatModelPrefix, formatProviderName } from './format-model-name'
+export { formatModelName, extractModelOwner } from './format-model-name'
 
 // Categorize models by type
 export function categorizeModel(modelId: string): 'chat' | 'embedding' | 'unknown' {
