@@ -294,7 +294,7 @@ export async function enhanceConfig(
           if (modelType === 'chat') {
             chatModelsCount++
             modelConfig.modalities = {
-              input: ["text", "image"],
+              input: ["text"],
               output: ["text"]
             }
           }

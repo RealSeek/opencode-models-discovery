@@ -1173,7 +1173,8 @@ describe('ModelDiscovery Plugin', () => {
         json: async () => ({
           data: [
             { id: 'Qwen/Qwen3-VL-Embedding-8B', object: 'model', created: 1234567890, owned_by: 'openai' },
-            { id: 'Qwen/Qwen3-VL-32B-Instruct', object: 'model', created: 1234567890, owned_by: 'openai' }
+            { id: 'Qwen/Qwen3-VL-32B-Instruct', object: 'model', created: 1234567890, owned_by: 'openai' },
+            { id: 'deepseek/deepseek-v4-flash', object: 'model', created: 1234567890, owned_by: 'openai' }
           ]
         })
       })
@@ -1196,7 +1197,14 @@ describe('ModelDiscovery Plugin', () => {
       expect(config.provider.litellm.models['Qwen/Qwen3-VL-32B-Instruct']).toEqual(expect.objectContaining({
         id: 'Qwen/Qwen3-VL-32B-Instruct',
         modalities: {
-          input: ['text', 'image'],
+          input: ['text'],
+          output: ['text']
+        }
+      }))
+      expect(config.provider.litellm.models['deepseek/deepseek-v4-flash']).toEqual(expect.objectContaining({
+        id: 'deepseek/deepseek-v4-flash',
+        modalities: {
+          input: ['text'],
           output: ['text']
         }
       }))
