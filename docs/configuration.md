@@ -12,7 +12,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -50,7 +50,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 
 Recommended approach:
 
-1. Keep the plugin entry simple: `"plugin": ["opencode-models-discovery"]`.
+1. Keep the plugin entry simple: `"plugin": ["@realseek/opencode-models-discovery"]`.
 2. Put endpoint, enablement, and model filtering rules on each provider.
 3. Use `modelsDiscovery.endpoint` whenever a provider does not follow the usual `/v1/models` convention.
 4. Use OpenCode `/connect` credentials or `provider.<name>.options.apiKey` for secrets; do not duplicate API keys unless needed.
@@ -161,7 +161,7 @@ Configure both `modelInfoEndpoint` and `modelInfoFormat` to enable it for a prov
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -198,7 +198,7 @@ Without `modelInfoEndpoint`, the source defaults to `https://models.dev/models.j
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
@@ -349,7 +349,7 @@ For providers with custom metadata paths or non-standard behavior:
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -399,7 +399,7 @@ In this example:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",

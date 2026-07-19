@@ -36,7 +36,7 @@ function getPackageInfo(): { name: string; repositorySlug: string } {
         .replace(/^git\+https:\/\/github\.com\//, '')
         .replace(/^https:\/\/github\.com\//, '')
         .replace(/\.git$/, '')
-    : 'yuhp/opencode-models-discovery'
+    : 'RealSeek/opencode-models-discovery'
 
   return {
     name: pkg.name,
