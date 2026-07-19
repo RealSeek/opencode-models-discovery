@@ -1,0 +1,241 @@
+{
+  "gpt-5.6-sol": {
+    "reasoning": true,
+    "variants": {
+      "none": { "reasoningEffort": "none" },
+      "low": { "reasoningEffort": "low" },
+      "medium": { "reasoningEffort": "medium" },
+      "high": { "reasoningEffort": "high" },
+      "xhigh": { "reasoningEffort": "xhigh" },
+      "max": { "reasoningEffort": "max" },
+      "ultra": { "reasoningEffort": "ultra" }
+    }
+  },
+  "gpt-5.6-terra": {
+    "reasoning": true,
+    "variants": {
+      "none": { "reasoningEffort": "none" },
+      "low": { "reasoningEffort": "low" },
+      "medium": { "reasoningEffort": "medium" },
+      "high": { "reasoningEffort": "high" },
+      "xhigh": { "reasoningEffort": "xhigh" },
+      "max": { "reasoningEffort": "max" },
+      "ultra": { "reasoningEffort": "ultra" }
+    }
+  },
+  "gpt-5.6-luna": {
+    "reasoning": true,
+    "variants": {
+      "none": { "reasoningEffort": "none" },
+      "low": { "reasoningEffort": "low" },
+      "medium": { "reasoningEffort": "medium" },
+      "high": { "reasoningEffort": "high" },
+      "xhigh": { "reasoningEffort": "xhigh" },
+      "max": { "reasoningEffort": "max" },
+      "ultra": { "reasoningEffort": "ultra" }
+    }
+  },
+  "gemini-3.1-pro-high": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "video", "audio", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "variants": {
+      "high": {
+        "thinkingConfig": {
+          "includeThoughts": true,
+          "thinkingLevel": "high"
+        }
+      }
+    }
+  },
+  "gemini-3.1-pro-low": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "video", "audio", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    },
+    "variants": {
+      "low": {
+        "thinkingConfig": {
+          "includeThoughts": true,
+          "thinkingLevel": "low"
+        }
+      }
+    }
+  },
+  "grok-composer-2.5-fast": {
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 200000,
+      "output": 200000
+    }
+  },
+  "k3": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 131072
+    }
+  },
+  "kimi-for-coding": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 131072
+    }
+  },
+  "kimi-for-coding-highspeed": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text", "image", "video"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 131072
+    }
+  },
+  "hy3-preview": {
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "input": 196608,
+      "output": 131072
+    }
+  },
+  "hy3": {
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "input": 196608,
+      "output": 131072
+    }
+  },
+  "doubao-seed-2.0-pro": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "video", "audio"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  "doubao-seed-2.0-lite": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "video", "audio"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  "doubao-seed-2.0-mini": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "video", "audio"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  "doubao-seed-2.0-code": {
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "temperature": true,
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  "MiniMax-M3": {
+    "limit": {
+      "context": 1048576
+    }
+  }
+}

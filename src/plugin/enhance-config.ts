@@ -184,6 +184,7 @@ export async function enhanceConfig(
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
       const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint
+      const modelInfoOverrideEndpoint = providerDiscoveryConfig.modelInfoOverrideEndpoint
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
       const filterNonChat = providerDiscoveryConfig.filterNonChat !== false
       const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
@@ -232,12 +233,39 @@ export async function enhanceConfig(
           format: modelInfoFormat,
         })
       } else if (modelInfoFormat === 'models.dev') {
-        const modelsDevCache = await fetchModelsDevData()
+        const modelsDevSource = typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0
+          ? modelInfoEndpoint
+          : undefined
+        const modelsDevCache = await fetchModelsDevData(modelsDevSource)
         modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
         logger.info('Loaded models.dev data', {
           provider: providerName,
+          ...(modelsDevSource ? { endpoint: modelsDevSource } : {}),
           count: modelsDevCache.size,
         })
+
+        if (typeof modelInfoOverrideEndpoint === 'string' && modelInfoOverrideEndpoint.length > 0) {
+          const modelsDevOverrides = await fetchModelsDevData(modelInfoOverrideEndpoint)
+          const overrideEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevOverrides, { filterNonChat })
+          const baseEnricher = modelInfoEnricher
+          modelInfoEnricher = {
+            shouldSkipModel(modelId: string): boolean {
+              return baseEnricher?.shouldSkipModel(modelId) === true || overrideEnricher?.shouldSkipModel(modelId) === true
+            },
+            getModelName(modelId: string): string | undefined {
+              return overrideEnricher?.getModelName?.(modelId) ?? baseEnricher?.getModelName?.(modelId)
+            },
+            applyModelInfo(modelConfig: any, modelId: string): void {
+              baseEnricher?.applyModelInfo(modelConfig, modelId)
+              overrideEnricher?.applyModelInfo(modelConfig, modelId)
+            },
+          }
+          logger.info('Loaded models.dev overrides', {
+            provider: providerName,
+            endpoint: modelInfoOverrideEndpoint,
+            count: modelsDevOverrides.size,
+          })
+        }
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
         if (modelInfoDiscovery.ok) {

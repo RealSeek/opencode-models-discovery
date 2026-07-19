@@ -12,6 +12,7 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
   const outputLimit = info.limit?.output
   if (hasUsableNumber(contextLimit) || hasUsableNumber(outputLimit)) {
     modelConfig.limit = {
+      ...modelConfig.limit,
       ...(hasUsableNumber(contextLimit) ? { context: contextLimit } : {}),
       ...(hasUsableNumber(info.limit?.input) ? { input: info.limit.input } : {}),
       ...(hasUsableNumber(outputLimit) ? { output: outputLimit } : {}),
@@ -23,11 +24,23 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
   if (typeof info.tool_call === 'boolean') modelConfig.tool_call = info.tool_call
   if (typeof info.structured_output === 'boolean') modelConfig.structured_output = info.structured_output
   if (typeof info.temperature === 'boolean') modelConfig.temperature = info.temperature
+  if (info.interleaved !== undefined) modelConfig.interleaved = info.interleaved
   if (info.modalities?.input?.length || info.modalities?.output?.length) {
     modelConfig.modalities = {
+      ...modelConfig.modalities,
       ...(info.modalities.input?.length ? { input: info.modalities.input } : {}),
       ...(info.modalities.output?.length ? { output: info.modalities.output } : {}),
     }
+  }
+  if (info.variants && Object.keys(info.variants).length > 0) {
+    const variants: Record<string, Record<string, unknown>> = { ...(modelConfig.variants ?? {}) }
+    for (const [name, options] of Object.entries(info.variants)) {
+      variants[name] = {
+        ...(variants[name] ?? {}),
+        ...options,
+      }
+    }
+    modelConfig.variants = variants
   }
 }
 

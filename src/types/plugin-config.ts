@@ -35,6 +35,7 @@ export interface ProviderDiscoveryConfig {
   enabled?: boolean
   endpoint?: string
   modelInfoEndpoint?: string
+  modelInfoOverrideEndpoint?: string
   modelInfoFormat?: ModelInfoFormat
   filterNonChat?: boolean
   models?: {

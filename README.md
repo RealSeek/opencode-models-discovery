@@ -128,7 +128,7 @@ The migration assistant is instructed to inspect project config, user global con
 
 ## Model Metadata Enrichment
 
-Discovery adds model ids to your OpenCode provider config. Some providers only expose minimal `/models` responses, so the plugin can optionally enrich discovered models with OpenCode-compatible capability metadata such as context limits, output limits, reasoning, tool calling, attachments, structured output, temperature support, and modalities.
+Discovery adds model ids to your OpenCode provider config. Some providers only expose minimal `/models` responses, so the plugin can optionally enrich discovered models with OpenCode-compatible capability metadata such as context limits, output limits, reasoning, tool calling, attachments, structured output, temperature support, modalities, and reasoning variants.
 
 Metadata enrichment is explicit. The plugin does not contact external metadata sources unless configured.
 
@@ -142,6 +142,21 @@ For models.dev enrichment:
   }
 }
 ```
+
+Set `modelInfoEndpoint` to an absolute HTTP(S) URL alongside `modelInfoFormat: "models.dev"` to use a user-maintained models.dev-compatible JSON file instead of the public index. See [Model Metadata Enrichment](docs/configuration.md#model-metadata-enrichment) for the flat JSON format and reasoning variant example.
+
+To keep the public index as the base and maintain only corrections, set `modelInfoOverrideEndpoint` instead. Matching correction fields take precedence, while unspecified fields and models continue using the base metadata:
+
+```json
+{
+  "modelsDiscovery": {
+    "modelInfoFormat": "models.dev",
+    "modelInfoOverrideEndpoint": "https://example.com/opencode-model-corrections.json"
+  }
+}
+```
+
+Both models.dev source options also accept local JSON through a `file://` URL or filesystem path. For example, use `"modelInfoOverrideEndpoint": "file:///E:/path/model-corrections.local.json"` during local testing, then replace it with the published HTTP(S) URL.
 
 For LiteLLM-compatible model info endpoints:
 

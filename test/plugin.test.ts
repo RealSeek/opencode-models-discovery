@@ -1081,6 +1081,143 @@ describe('ModelDiscovery Plugin', () => {
       }))
     })
 
+    it('should load a user-maintained models.dev-compatible endpoint', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'vendor/new-vision-model', object: 'model', owned_by: 'vendor' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-vision-model': {
+              attachment: true,
+              reasoning: true,
+              modalities: { input: ['text', 'image'], output: ['text'] },
+              variants: {
+                low: { reasoningEffort: 'low' },
+                high: { reasoningEffort: 'high' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev',
+                modelInfoEndpoint: 'https://example.com/my-models.json'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://example.com/my-models.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['vendor/new-vision-model']).toEqual(expect.objectContaining({
+        attachment: true,
+        reasoning: true,
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        variants: {
+          low: { reasoningEffort: 'low' },
+          high: { reasoningEffort: 'high' }
+        }
+      }))
+    })
+
+    it('should overlay partial models.dev corrections on base metadata', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'vendor/new-model', object: 'model', owned_by: 'vendor' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-model': {
+              name: 'Base Name',
+              attachment: false,
+              reasoning: true,
+              tool_call: true,
+              modalities: { input: ['text'], output: ['text'] },
+              limit: { context: 200000, input: 180000, output: 32000 },
+              variants: {
+                low: { reasoningEffort: 'low', reasoningSummary: 'auto' },
+                medium: { reasoningEffort: 'medium' }
+              }
+            }
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-model': {
+              name: 'Corrected Name',
+              attachment: true,
+              tool_call: false,
+              interleaved: { field: 'reasoning_content' },
+              modalities: { input: ['text', 'image'] },
+              limit: { output: 64000 },
+              variants: {
+                low: { reasoningSummary: 'detailed' },
+                high: { reasoningEffort: 'high' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev',
+                modelInfoEndpoint: 'https://example.com/base-models.json',
+                modelInfoOverrideEndpoint: 'https://example.com/model-corrections.json',
+                smartModelName: true
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(3, 'https://example.com/model-corrections.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['vendor/new-model']).toEqual(expect.objectContaining({
+        name: 'Corrected Name',
+        attachment: true,
+        reasoning: true,
+        tool_call: false,
+        interleaved: { field: 'reasoning_content' },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        limit: { context: 200000, input: 180000, output: 64000 },
+        variants: {
+          low: { reasoningEffort: 'low', reasoningSummary: 'detailed' },
+          medium: { reasoningEffort: 'medium' },
+          high: { reasoningEffort: 'high' }
+        }
+      }))
+    })
+
     it('should keep raw ids when models.dev has names but smart model names are disabled', async () => {
       mockFetch
         .mockResolvedValueOnce({

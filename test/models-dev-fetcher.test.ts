@@ -1,5 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, it, expect, beforeEach } from 'vitest'
-import { lookupModelsDevData, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
+import { fetchModelsDevData, lookupModelsDevData, modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
 
 describe('models.dev fetcher', () => {
   beforeEach(() => {
@@ -39,6 +43,82 @@ describe('models.dev fetcher', () => {
       tool_call: true,
       limit: { context: 128000, input: undefined, output: undefined }
     }))
+  })
+
+  it('should preserve custom OpenCode reasoning variants', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      'openai/gpt-5.5': {
+        reasoning: true,
+        variants: {
+          low: { reasoningEffort: 'low' },
+          xhigh: { reasoningEffort: 'xhigh', reasoningSummary: 'detailed' }
+        }
+      }
+    })
+
+    expect(cache.get('openai/gpt-5.5')?.variants).toEqual({
+      low: { reasoningEffort: 'low' },
+      xhigh: { reasoningEffort: 'xhigh', reasoningSummary: 'detailed' }
+    })
+  })
+
+  it('should preserve interleaved reasoning configuration', () => {
+    const cache = modelsDevTestUtils.parseModelsDevData({
+      'moonshotai/kimi-k3': {
+        reasoning: true,
+        interleaved: { field: 'reasoning_content' }
+      }
+    })
+
+    expect(cache.get('moonshotai/kimi-k3')?.interleaved).toEqual({
+      field: 'reasoning_content'
+    })
+  })
+
+  it('should load models.dev-compatible data from a local file URL', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'models-dev-'))
+    const file = path.join(directory, 'corrections.json')
+
+    try {
+      await writeFile(file, JSON.stringify({
+        'vendor/local-vision-model': {
+          attachment: true,
+          modalities: { input: ['text', 'image'] }
+        }
+      }))
+
+      const cache = await fetchModelsDevData(pathToFileURL(file).href)
+
+      expect(cache.get('vendor/local-vision-model')).toEqual(expect.objectContaining({
+        attachment: true,
+        modalities: { input: ['text', 'image'], output: undefined }
+      }))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('should load models.dev-compatible data from a local path', async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'models-dev-'))
+    const file = path.join(directory, 'corrections.json')
+
+    try {
+      await writeFile(file, JSON.stringify({
+        'vendor/local-reasoning-model': {
+          reasoning: true,
+          variants: { high: { reasoningEffort: 'high' } }
+        }
+      }))
+
+      const cache = await fetchModelsDevData(file)
+
+      expect(cache.get('vendor/local-reasoning-model')).toEqual(expect.objectContaining({
+        reasoning: true,
+        variants: { high: { reasoningEffort: 'high' } }
+      }))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('should match exact and same-provider model variants', () => {

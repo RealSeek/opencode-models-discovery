@@ -38,7 +38,8 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info endpoint path. Metadata enrichment is disabled when omitted |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info source. For models.dev, accepts HTTP(S), `file://`, or a file path |
+| `provider.<name>.options.modelsDiscovery.modelInfoOverrideEndpoint` | `string` | Optional models.dev-compatible correction source applied after the base metadata; accepts HTTP(S), `file://`, or a file path |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` and `"models.dev"` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
@@ -150,7 +151,7 @@ The plugin currently supports two model info formats:
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
 | `"litellm"` | Provider-specific model info endpoint | Yes | Uses LiteLLM `/v1/model/info` responses |
-| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
+| `"models.dev"` | `https://models.dev/models.json` or a custom URL | Optional | Uses models.dev-compatible metadata |
 
 ### LiteLLM Model Info
 
@@ -193,7 +194,7 @@ Use `modelInfoFormat: "models.dev"` to enrich discovered models from the public 
 
 This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/).
 
-This does not require `modelInfoEndpoint`, because the source is fixed to `https://models.dev/models.json`:
+Without `modelInfoEndpoint`, the source defaults to `https://models.dev/models.json`:
 
 ```json
 {
@@ -216,6 +217,90 @@ This does not require `modelInfoEndpoint`, because the source is fixed to `https
 }
 ```
 
+To maintain model capabilities yourself, publish a JSON file over HTTP(S) and set its absolute URL as `modelInfoEndpoint`:
+
+```json
+{
+  "modelInfoFormat": "models.dev",
+  "modelInfoEndpoint": "https://example.com/opencode-models.json"
+}
+```
+
+The file may use the normal provider-nested models.dev shape or a simpler flat shape keyed by model id:
+
+```json
+{
+  "vendor/new-vision-model": {
+    "name": "New Vision Model",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "interleaved": { "field": "reasoning_content" },
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "limit": {
+      "context": 200000,
+      "output": 64000
+    },
+    "variants": {
+      "low": { "reasoningEffort": "low" },
+      "medium": { "reasoningEffort": "medium" },
+      "high": { "reasoningEffort": "high" },
+      "xhigh": { "reasoningEffort": "xhigh" }
+    }
+  }
+}
+```
+
+`attachment: true` and `modalities.input` containing `"image"` are the relevant fields for image attachments. `variants` is passed through to OpenCode, so its values must be valid provider options for the model API you use.
+
+For reasoning models that require prior reasoning content to be returned during tool loops, set `interleaved` to `true` or to an explicit OpenCode reasoning field such as `{ "field": "reasoning_content" }`. Supported explicit fields are `reasoning`, `reasoning_content`, and `reasoning_details`.
+
+### Partial models.dev Corrections
+
+When most public models.dev metadata is correct, keep it as the base and provide only the incorrect fields through `modelInfoOverrideEndpoint`:
+
+```json
+{
+  "modelInfoFormat": "models.dev",
+  "modelInfoOverrideEndpoint": "https://example.com/opencode-model-corrections.json"
+}
+```
+
+For example, the correction file can contain just one model and the fields that need changing:
+
+```json
+{
+  "vendor/new-vision-model": {
+    "attachment": true,
+    "modalities": {
+      "input": ["text", "image"]
+    },
+    "variants": {
+      "high": { "reasoningEffort": "high" },
+      "xhigh": { "reasoningEffort": "xhigh" }
+    }
+  }
+}
+```
+
+The correction source is applied after the base source. Scalar values, including explicit `false`, take precedence. `limit` and `modalities` are merged by subfield. `variants` are merged by variant name and then by option, so unspecified base metadata remains available. Models absent from the correction file continue using base metadata unchanged.
+
+`modelInfoEndpoint` and `modelInfoOverrideEndpoint` can be used together: the former replaces the public models.dev base, while the latter overlays partial corrections on that custom base.
+
+For local testing, point the override directly at a JSON file. On Windows, a `file://` URL with forward slashes is the least ambiguous form:
+
+```json
+{
+  "modelInfoFormat": "models.dev",
+  "modelInfoOverrideEndpoint": "file:///E:/GitCode/opencode-models-discovery/model-corrections.local.json"
+}
+```
+
+Absolute filesystem paths are also accepted. Relative paths resolve from OpenCode's current working directory, which can vary by the project being opened, so they are not recommended for global configuration. Local file read or JSON parse failures are non-fatal: discovery continues without that source. After local verification, replace the `file://` value with the published HTTP(S) URL; the JSON format does not change.
+
 When a discovered model can be matched to models.dev metadata, the plugin may populate:
 
 - `limit.context`, `limit.input`, and `limit.output`
@@ -225,6 +310,8 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 - `structured_output`
 - `temperature`
 - `modalities`
+- `interleaved`
+- `variants` (for user-maintained compatible sources)
 
 Matching is intentionally conservative:
 
