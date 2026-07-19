@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "opencode-model-discovery",
+      "name": "@realseek/opencode-models-discovery",
       "dependencies": {
         "xdg-basedir": "^5.1.0",
       },
