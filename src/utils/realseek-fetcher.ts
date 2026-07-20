@@ -1,3 +1,5 @@
+import { fetchJsonWithIPv4Fallback } from './http-json'
+
 export const DEFAULT_REALSEEK_URL = 'https://cch-plus.com/pricing/v1/models.json'
 
 const realseekCaches = new Map<string, Promise<unknown>>()
@@ -7,18 +9,7 @@ export async function fetchRealseekData(source: string = DEFAULT_REALSEEK_URL): 
   if (cached) return cached
 
   const request = (async () => {
-    try {
-      const response = await fetch(source, {
-        method: 'GET',
-        signal: AbortSignal.timeout(30000),
-      })
-
-      if (!response.ok) return undefined
-
-      return await response.json()
-    } catch {
-      return undefined
-    }
+    return fetchJsonWithIPv4Fallback(source, 30000)
   })()
 
   realseekCaches.set(source, request)

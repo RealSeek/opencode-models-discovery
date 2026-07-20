@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { fetchJsonWithIPv4Fallback } from './http-json'
 
 export interface ModelsDevModel {
   id: string
@@ -37,12 +38,7 @@ function isHttpSource(source: string): boolean {
 
 async function readModelsDevSource(source: string): Promise<unknown> {
   if (isHttpSource(source)) {
-    const response = await fetch(source, {
-      method: 'GET',
-      signal: AbortSignal.timeout(3000),
-    })
-
-    return response.ok ? response.json() : undefined
+    return fetchJsonWithIPv4Fallback(source, 10000)
   }
 
   const filePath = source.startsWith('file:')
