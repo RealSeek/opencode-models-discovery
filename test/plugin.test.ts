@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { promises as fs } from 'node:fs'
 import { ModelDiscoveryPlugin } from '../src/index.ts'
 import { modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
+import { realseekTestUtils } from '../src/utils/realseek-fetcher.ts'
 
 const mockFetch = vi.hoisted(() => vi.fn())
 
@@ -63,6 +64,7 @@ describe('ModelDiscovery Plugin', () => {
   beforeEach(async () => {
     mockFetch.mockClear()
     modelsDevTestUtils.resetCache()
+    realseekTestUtils.resetCache()
     delete process.env.OPENCODE_AUTH_CONTENT
     delete process.env.OPENCODE
     delete process.env.OPENCODE_PID
@@ -1078,6 +1080,94 @@ describe('ModelDiscovery Plugin', () => {
         name: 'GPT-4o',
         tool_call: true,
         limit: { context: 128000 }
+      }))
+    })
+
+    it('should load Realseek prices and apply a provider cost multiplier', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'gpt-5.6-sol', object: 'model', created: 1234567890, owned_by: 'openai' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            models: [{
+              slug: 'openai/gpt-5.6-sol',
+              model_name: 'gpt-5.6-sol',
+              display_name: 'GPT-5.6 Sol',
+              max_input_tokens: 1050000,
+              max_output_tokens: 128000,
+              modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+              capabilities: { vision: true, reasoning: true, function_calling: true },
+              pricing: [{
+                provider: 'openai',
+                official: true,
+                charges: {
+                  prompt: { unit: 'per_M_tokens', price: '5' },
+                  completion: { unit: 'per_M_tokens', price: '30' },
+                  cache_read: { unit: 'per_M_tokens', price: '0.5' },
+                  cache_write: { unit: 'per_M_tokens', price: '6.25' }
+                }
+              }]
+            }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'gpt-5.6-sol': {
+              variants: {
+                none: { reasoningEffort: 'none' },
+                ultra: { reasoningEffort: 'ultra' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'https://example.com/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'realseek',
+                costMultiplier: 2.5,
+                modelInfoOverrideEndpoint: 'https://example.com/model-corrections.json'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://cch-plus.com/pricing/v1/models.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(mockFetch).toHaveBeenNthCalledWith(3, 'https://example.com/model-corrections.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['gpt-5.6-sol']).toEqual(expect.objectContaining({
+        name: 'gpt-5.6-sol',
+        attachment: true,
+        reasoning: true,
+        tool_call: true,
+        limit: { context: 1050000, input: 1050000, output: 128000 },
+        cost: {
+          input: 12.5,
+          output: 75,
+          cacheRead: 1.25,
+          cacheWrite5m: 15.625
+        },
+        variants: {
+          none: { reasoningEffort: 'none' },
+          ultra: { reasoningEffort: 'ultra' }
+        }
       }))
     })
 

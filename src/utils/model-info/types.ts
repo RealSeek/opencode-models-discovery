@@ -6,4 +6,5 @@ export interface ModelInfoEnricher {
 
 export interface ModelInfoEnricherOptions {
   filterNonChat: boolean
+  costMultiplier?: number
 }

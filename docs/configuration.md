@@ -38,9 +38,10 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info source. For models.dev, accepts HTTP(S), `file://`, or a file path |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info source. For models.dev, accepts HTTP(S), `file://`, or a file path. For `realseek`, defaults to the Realseek pricing URL |
 | `provider.<name>.options.modelsDiscovery.modelInfoOverrideEndpoint` | `string` | Optional models.dev-compatible correction source applied after the base metadata; accepts HTTP(S), `file://`, or a file path |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"litellm"` and `"models.dev"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Supports `"litellm"`, `"models.dev"`, and `"realseek"` |
+| `provider.<name>.options.modelsDiscovery.costMultiplier` | `number` | Multiplies Realseek per-token prices for a third-party provider group. Defaults to `1` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -146,12 +147,13 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports two model info formats:
+The plugin currently supports three model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
 | `"litellm"` | Provider-specific model info endpoint | Yes | Uses LiteLLM `/v1/model/info` responses |
 | `"models.dev"` | `https://models.dev/models.json` or a custom URL | Optional | Uses models.dev-compatible metadata |
+| `"realseek"` | `https://cch-plus.com/pricing/v1/models.json` or a custom URL | Optional | Uses Realseek pricing and model metadata, including cost multiplier support |
 
 ### LiteLLM Model Info
 
@@ -257,6 +259,40 @@ The file may use the normal provider-nested models.dev shape or a simpler flat s
 `attachment: true` and `modalities.input` containing `"image"` are the relevant fields for image attachments. `variants` is passed through to OpenCode, so its values must be valid provider options for the model API you use.
 
 For reasoning models that require prior reasoning content to be returned during tool loops, set `interleaved` to `true` or to an explicit OpenCode reasoning field such as `{ "field": "reasoning_content" }`. Supported explicit fields are `reasoning`, `reasoning_content`, and `reasoning_details`.
+
+### Realseek Pricing Metadata
+
+Use `modelInfoFormat: "realseek"` to load the Realseek pricing table. Without `modelInfoEndpoint`, the plugin uses:
+
+```text
+https://cch-plus.com/pricing/v1/models.json
+```
+
+The source provides model limits, capabilities, and per-million-token USD prices. The plugin prefers an `official: true` pricing entry, then a pricing entry whose provider matches the model vendor, then the first available pricing entry.
+
+For New-API or Sub2API-style group pricing, set the provider's `costMultiplier` manually:
+
+```json
+{
+  "provider": {
+    "codex-pro": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://example.com/v1",
+        "modelsDiscovery": {
+          "modelInfoFormat": "realseek",
+          "costMultiplier": 2.5,
+          "modelInfoOverrideEndpoint": "https://example.com/model-corrections.json"
+        }
+      }
+    }
+  }
+}
+```
+
+The multiplier is applied to input, output, cache-read, and cache-write prices. A missing multiplier defaults to `1`. The model table's source price is not changed; only the generated OpenCode model cost is adjusted. Realseek `cache_read` maps to OpenCode `cost.cacheRead`, and `cache_write` maps to `cost.cacheWrite5m`.
+
+For example, `gpt-5.6-sol` has a base price of `$5` input, `$30` output, `$0.5` cache read, and `$6.25` cache write per million tokens. With `costMultiplier: 2.5`, the generated prices are `$12.5`, `$75`, `$1.25`, and `$15.625` respectively.
 
 ### Partial models.dev Corrections
 

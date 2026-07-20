@@ -7,6 +7,7 @@ import { normalizeBaseURL, discoverModelsFromProvider, discoverModelInfoFromProv
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride } from '../types/plugin-config'
 import { fetchModelsDevData } from '../utils/models-dev-fetcher'
+import { DEFAULT_REALSEEK_URL, fetchRealseekData } from '../utils/realseek-fetcher'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { OpenAIModel } from '../types'
@@ -186,6 +187,11 @@ export async function enhanceConfig(
       const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint
       const modelInfoOverrideEndpoint = providerDiscoveryConfig.modelInfoOverrideEndpoint
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
+      const costMultiplier = typeof providerDiscoveryConfig.costMultiplier === 'number'
+        && Number.isFinite(providerDiscoveryConfig.costMultiplier)
+        && providerDiscoveryConfig.costMultiplier >= 0
+        ? providerDiscoveryConfig.costMultiplier
+        : 1
       const filterNonChat = providerDiscoveryConfig.filterNonChat !== false
       const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
 
@@ -237,7 +243,7 @@ export async function enhanceConfig(
           ? modelInfoEndpoint
           : undefined
         const modelsDevCache = await fetchModelsDevData(modelsDevSource)
-        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat, costMultiplier })
         logger.info('Loaded models.dev data', {
           provider: providerName,
           ...(modelsDevSource ? { endpoint: modelsDevSource } : {}),
@@ -246,7 +252,41 @@ export async function enhanceConfig(
 
         if (typeof modelInfoOverrideEndpoint === 'string' && modelInfoOverrideEndpoint.length > 0) {
           const modelsDevOverrides = await fetchModelsDevData(modelInfoOverrideEndpoint)
-          const overrideEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevOverrides, { filterNonChat })
+          const overrideEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevOverrides, { filterNonChat, costMultiplier })
+          const baseEnricher = modelInfoEnricher
+          modelInfoEnricher = {
+            shouldSkipModel(modelId: string): boolean {
+              return baseEnricher?.shouldSkipModel(modelId) === true || overrideEnricher?.shouldSkipModel(modelId) === true
+            },
+            getModelName(modelId: string): string | undefined {
+              return overrideEnricher?.getModelName?.(modelId) ?? baseEnricher?.getModelName?.(modelId)
+            },
+            applyModelInfo(modelConfig: any, modelId: string): void {
+              baseEnricher?.applyModelInfo(modelConfig, modelId)
+              overrideEnricher?.applyModelInfo(modelConfig, modelId)
+            },
+          }
+          logger.info('Loaded models.dev overrides', {
+            provider: providerName,
+            endpoint: modelInfoOverrideEndpoint,
+            count: modelsDevOverrides.size,
+          })
+        }
+      } else if (modelInfoFormat === 'realseek') {
+        const realseekSource = typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0
+          ? modelInfoEndpoint
+          : DEFAULT_REALSEEK_URL
+        const realseekData = await fetchRealseekData(realseekSource)
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, realseekData, { filterNonChat, costMultiplier })
+        logger.info('Loaded realseek model data', {
+          provider: providerName,
+          endpoint: realseekSource,
+          costMultiplier,
+        })
+
+        if (typeof modelInfoOverrideEndpoint === 'string' && modelInfoOverrideEndpoint.length > 0) {
+          const modelsDevOverrides = await fetchModelsDevData(modelInfoOverrideEndpoint)
+          const overrideEnricher = createModelInfoEnricher('models.dev', modelsDevOverrides, { filterNonChat, costMultiplier })
           const baseEnricher = modelInfoEnricher
           modelInfoEnricher = {
             shouldSkipModel(modelId: string): boolean {
@@ -269,7 +309,7 @@ export async function enhanceConfig(
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
         if (modelInfoDiscovery.ok) {
-          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
+          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat, costMultiplier })
         } else {
           logger.warn('Provider model info discovery failed', {
             provider: providerName,

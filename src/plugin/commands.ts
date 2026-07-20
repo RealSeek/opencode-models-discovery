@@ -115,6 +115,8 @@ Supported plugin options under provider.<id>.options.modelsDiscovery:
 - models.excludeBy: deny-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - smartModelName: use friendlier display names for discovered models
 - modelInfoFormat="models.dev": enrich from the public models.dev index without modelInfoEndpoint
+- modelInfoFormat="realseek": enrich from https://cch-plus.com/pricing/v1/models.json without modelInfoEndpoint, including model prices
+- costMultiplier: multiply Realseek input, output, cache-read, and cache-write prices for a third-party provider group; defaults to 1
 - modelInfoOverrideEndpoint plus modelInfoFormat="models.dev": overlay a small user-maintained models.dev-compatible correction file on the base index
 - modelInfoEndpoint plus modelInfoFormat="litellm": enrich from a LiteLLM-compatible model info endpoint
 - filterNonChat: when LiteLLM model info is available, skip non-chat models by default
@@ -135,6 +137,8 @@ Recommended defaults:
 - avoid configuring both includeBy field="id" match rules and includeRegex unless the user wants an intersection with legacy id-only shortcut behavior
 - use smartModelName=true only when the user wants friendlier display names
 - use modelInfoFormat="models.dev" for models.dev metadata enrichment
+- use modelInfoFormat="realseek" for Realseek pricing and model metadata
+- set costMultiplier to the manually maintained New-API or Sub2API group multiplier when using modelInfoFormat="realseek"
 - use modelInfoOverrideEndpoint with modelInfoFormat="models.dev" for partial capability and reasoning corrections that take precedence over the base metadata
 - use modelInfoEndpoint and modelInfoFormat="litellm" for LiteLLM-compatible model info endpoints
 

@@ -37,6 +37,7 @@ export interface ProviderDiscoveryConfig {
   modelInfoEndpoint?: string
   modelInfoOverrideEndpoint?: string
   modelInfoFormat?: ModelInfoFormat
+  costMultiplier?: number
   filterNonChat?: boolean
   models?: {
     includeRegex?: string[]
