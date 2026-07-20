@@ -1161,8 +1161,8 @@ describe('ModelDiscovery Plugin', () => {
         cost: {
           input: 12.5,
           output: 75,
-          cacheRead: 1.25,
-          cacheWrite5m: 15.625
+          cache_read: 1.25,
+          cache_write: 15.625
         },
         variants: {
           none: { reasoningEffort: 'none' },

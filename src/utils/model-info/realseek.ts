@@ -104,8 +104,8 @@ function applyCost(modelConfig: any, pricing: RealseekPricing | undefined, multi
   modelConfig.cost = {
     ...(input !== undefined ? { input: input * multiplier } : {}),
     ...(output !== undefined ? { output: output * multiplier } : {}),
-    ...(cacheRead !== undefined ? { cacheRead: cacheRead * multiplier } : {}),
-    ...(cacheWrite !== undefined ? { cacheWrite5m: cacheWrite * multiplier } : {}),
+    ...(cacheRead !== undefined ? { cache_read: cacheRead * multiplier } : {}),
+    ...(cacheWrite !== undefined ? { cache_write: cacheWrite * multiplier } : {}),
   }
 }
 

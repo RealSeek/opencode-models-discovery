@@ -290,7 +290,7 @@ For New-API or Sub2API-style group pricing, set the provider's `costMultiplier` 
 }
 ```
 
-The multiplier is applied to input, output, cache-read, and cache-write prices. A missing multiplier defaults to `1`. The model table's source price is not changed; only the generated OpenCode model cost is adjusted. Realseek `cache_read` maps to OpenCode `cost.cacheRead`, and `cache_write` maps to `cost.cacheWrite5m`.
+The multiplier is applied to input, output, cache-read, and cache-write prices. A missing multiplier defaults to `1`. The model table's source price is not changed; only the generated OpenCode model cost is adjusted. Realseek `cache_read` and `cache_write` map to OpenCode `cost.cache_read` and `cost.cache_write`.
 
 For example, `gpt-5.6-sol` has a base price of `$5` input, `$30` output, `$0.5` cache read, and `$6.25` cache write per million tokens. With `costMultiplier: 2.5`, the generated prices are `$12.5`, `$75`, `$1.25`, and `$15.625` respectively.
 
