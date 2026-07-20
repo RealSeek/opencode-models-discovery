@@ -489,6 +489,45 @@ describe('ModelDiscovery Plugin', () => {
       }))
     })
 
+    it('should wait until model discovery completes', async () => {
+      let resolveFetch: ((response: any) => void) | undefined
+      mockFetch.mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFetch = resolve
+      }))
+      const config: any = {
+        provider: {
+          slow: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              apiKey: 'test-key',
+              baseURL: 'https://slow.example/v1',
+              modelsDiscovery: { enabled: true }
+            },
+            models: {}
+          }
+        }
+      }
+
+      let completed = false
+      const configPromise = pluginHooks.config(config).then(() => {
+        completed = true
+      })
+
+      await Promise.resolve()
+      expect(completed).toBe(false)
+
+      resolveFetch?.({
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'eventually-loaded-model', object: 'model', owned_by: 'test' }]
+        })
+      })
+      await configPromise
+
+      expect(completed).toBe(true)
+      expect(config.provider.slow.models['eventually-loaded-model']).toBeDefined()
+    })
+
     it('should use resolved provider key from OpenCode auth when options.apiKey is absent', async () => {
       mockClient.config.providers.mockResolvedValueOnce({
         data: {
