@@ -38,6 +38,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 |--------|------|-------------|
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint path. Defaults to `/v1/models` |
+| `provider.<name>.options.modelsDiscovery.timeoutMs` | `number` | Request timeout in milliseconds for API calls. Defaults to `3000` |
 | `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Provider-specific model info source. For models.dev, accepts HTTP(S), `file://`, or a file path. For `realseek`, defaults to the Realseek pricing URL |
 | `provider.<name>.options.modelsDiscovery.modelInfoOverrideEndpoint` | `string` | Optional models.dev-compatible correction source applied after the base metadata; accepts HTTP(S), `file://`, or a file path |
 | `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Supports `"litellm"`, `"models.dev"`, and `"realseek"` |
