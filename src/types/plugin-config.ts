@@ -34,6 +34,7 @@ export type ModelInfoFormat = 'litellm' | 'models.dev' | (string & {})
 export interface ProviderDiscoveryConfig {
   enabled?: boolean
   endpoint?: string
+  timeoutMs?: number
   modelInfoEndpoint?: string
   modelInfoOverrideEndpoint?: string
   modelInfoFormat?: ModelInfoFormat

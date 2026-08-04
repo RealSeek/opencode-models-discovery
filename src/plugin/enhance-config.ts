@@ -184,6 +184,7 @@ export async function enhanceConfig(
       const p = providerConfig as any
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
+      const timeoutMs = providerDiscoveryConfig.timeoutMs ?? 3000
       const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint
       const modelInfoOverrideEndpoint = providerDiscoveryConfig.modelInfoOverrideEndpoint
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
@@ -216,7 +217,7 @@ export async function enhanceConfig(
       const apiKey = await getProviderApiKey(providerName, p, client, resolvedProvidersLoader, logger)
 
       let models: OpenAIModel[]
-      const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint)
+      const discovery = await discoverModelsFromProvider(baseURL, apiKey, modelsEndpoint, timeoutMs)
       if (!discovery.ok) {
         logger.warn('Provider model discovery failed', {
           provider: providerName,
@@ -307,7 +308,7 @@ export async function enhanceConfig(
           })
         }
       } else if (typeof modelInfoEndpoint === 'string' && modelInfoEndpoint.length > 0 && modelInfoFormat) {
-        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint)
+        const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
         if (modelInfoDiscovery.ok) {
           modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat, costMultiplier })
         } else {

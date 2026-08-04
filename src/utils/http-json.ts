@@ -1,8 +1,9 @@
 import { resolve4 } from 'node:dns/promises'
 import http from 'node:http'
 import https from 'node:https'
+import { DEFAULT_REQUEST_TIMEOUT_MS } from './openai-compatible-api'
 
-async function requestJsonOverIPv4<T>(url: string, timeoutMs: number): Promise<T | undefined> {
+async function requestJsonOverIPv4<T>(url: string, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T | undefined> {
   const parsedUrl = new URL(url)
   const addresses = await resolve4(parsedUrl.hostname)
   const address = addresses[0]
@@ -58,7 +59,7 @@ async function requestJsonOverIPv4<T>(url: string, timeoutMs: number): Promise<T
   })
 }
 
-export async function fetchJsonWithIPv4Fallback<T>(url: string, timeoutMs: number): Promise<T | undefined> {
+export async function fetchJsonWithIPv4Fallback<T>(url: string, timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS): Promise<T | undefined> {
   try {
     const response = await fetch(url, {
       method: 'GET',
