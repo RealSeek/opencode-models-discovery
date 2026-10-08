@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_CONFIG_HOOK_TIMEOUT_MS, getConfigHookTimeoutMs } from '../src/plugin/config-hook'
+import { getConfigHookTimeoutMs } from '../src/plugin/config-hook'
 import type { PluginLogger } from '../src/plugin/logger'
 
 const logger: PluginLogger = {
@@ -11,11 +11,10 @@ const logger: PluginLogger = {
 }
 
 describe('config hook timeout', () => {
-  it('uses the default startup wait budget', () => {
-    expect(getConfigHookTimeoutMs({}, logger)).toBe(DEFAULT_CONFIG_HOOK_TIMEOUT_MS)
+  it('waits for discovery to complete by default', () => {
+    expect(getConfigHookTimeoutMs({}, logger)).toBeUndefined()
     expect(logger.debug).toHaveBeenCalledWith('Using config hook timeout', {
-      timeoutMs: DEFAULT_CONFIG_HOOK_TIMEOUT_MS,
-      providerTimeoutMs: undefined,
+      timeoutMs: undefined,
     })
   })
 
@@ -30,17 +29,16 @@ describe('config hook timeout', () => {
     expect(getConfigHookTimeoutMs(config, logger)).toBe(7500)
     expect(logger.debug).toHaveBeenCalledWith('Using config hook timeout', {
       timeoutMs: 7500,
-      providerTimeoutMs: 7500,
     })
   })
 
-  it('does not reduce the default startup wait budget', () => {
+  it('uses the configured timeout even when it is small', () => {
     const config = {
       provider: {
         fast: { options: { modelsDiscovery: { timeoutMs: 1000 } } },
       },
     }
 
-    expect(getConfigHookTimeoutMs(config, logger)).toBe(DEFAULT_CONFIG_HOOK_TIMEOUT_MS)
+    expect(getConfigHookTimeoutMs(config, logger)).toBe(1000)
   })
 })

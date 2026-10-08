@@ -8,6 +8,7 @@ import { normalizeProviderOriginForCache, discoverModelsFromProvider, discoverMo
 import { createModelInfoEnricher, isSupportedModelInfoFormat, type ModelInfoEnricher } from '../utils/model-info'
 import { DEFAULT_CACHE_TTL_SECONDS, getDefaultDiscoveryConfigFromEnv, getProviderModelFieldFilters, getProviderModelRegexFilter, shouldDiscoverModel, shouldDiscoverModelByFields, shouldDiscoverProviderWithOverride, ModelInfoFormat } from '../types/plugin-config'
 import { DEFAULT_MODELS_DEV_URL, fetchModelsDevData } from '../utils/models-dev-fetcher'
+import { DEFAULT_REALSEEK_URL, fetchRealseekData } from '../utils/realseek-fetcher'
 import { isInventoryFresh, mergeModelOverride, ProviderModelStore, type ProviderModelState } from './provider-model-store'
 import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
@@ -68,6 +69,52 @@ function replaceInjectedModels(config: object, providerID: string, models: Recor
 function getExplicitModels(config: object, providerID: string, models: Record<string, any>): Record<string, any> {
   const injectedModels = getInjectedModels(config, providerID)
   return Object.fromEntries(Object.entries(models).filter(([modelID, model]) => injectedModels.get(modelID) !== model))
+}
+
+/**
+ * Overlay an override enricher (typically a small user-maintained models.dev
+ * correction file) on top of the base enricher. The override wins for display
+ * names and is applied after the base so partial field corrections take
+ * precedence; a model is skipped when either enricher rejects it.
+ */
+function composeEnrichers(
+  baseEnricher: ModelInfoEnricher | undefined,
+  overrideEnricher: ModelInfoEnricher | undefined
+): ModelInfoEnricher | undefined {
+  if (!baseEnricher) return overrideEnricher
+  if (!overrideEnricher) return baseEnricher
+
+  return {
+    shouldSkipModel(modelId: string): boolean {
+      return baseEnricher.shouldSkipModel(modelId) || overrideEnricher.shouldSkipModel(modelId)
+    },
+    getModelName(modelId: string, rawModel?: Record<string, unknown>): string | undefined {
+      return overrideEnricher.getModelName?.(modelId, rawModel) ?? baseEnricher.getModelName?.(modelId, rawModel)
+    },
+    applyModelInfo(modelConfig: any, modelId: string, rawModel?: Record<string, unknown>): void {
+      baseEnricher.applyModelInfo(modelConfig, modelId, rawModel)
+      overrideEnricher.applyModelInfo(modelConfig, modelId, rawModel)
+    },
+  }
+}
+
+async function loadModelsDevOverrideEnricher(
+  overrideEndpoint: string | undefined,
+  options: { filterNonChat: boolean; costMultiplier: number },
+  providerName: string,
+  logger: PluginLogger
+): Promise<ModelInfoEnricher | undefined> {
+  if (typeof overrideEndpoint !== 'string' || overrideEndpoint.length === 0) {
+    return undefined
+  }
+
+  const overrides = await fetchModelsDevData(overrideEndpoint)
+  logger.info('Loaded models.dev overrides', {
+    provider: providerName,
+    endpoint: overrideEndpoint,
+    count: overrides.size,
+  })
+  return createModelInfoEnricher(ModelInfoFormat.ModelsDev, overrides, options)
 }
 
 async function getResolvedProvidersByID(
@@ -218,7 +265,9 @@ export async function enhanceConfig(
       const providerDiscoveryConfig = p.options?.modelsDiscovery ?? {}
       const modelsEndpoint = providerDiscoveryConfig.endpoint ?? '/v1/models'
       const timeoutMs = providerDiscoveryConfig.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS
+      const modelInfoOverrideEndpoint = providerDiscoveryConfig.modelInfoOverrideEndpoint
       const modelInfoFormat = providerDiscoveryConfig.modelInfoFormat
+      const costMultiplier = providerDiscoveryConfig.costMultiplier ?? 1
       const filterNonChat = providerDiscoveryConfig.filterNonChat !== false
       const forceDiscoveryEnabled = providerDiscoveryConfig.enabled === true
 
@@ -299,12 +348,37 @@ export async function enhanceConfig(
       } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.ModelsDev) {
         const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_MODELS_DEV_URL
         const modelsDevCache = await fetchModelsDevData(modelInfoEndpoint)
-        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat })
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelsDevCache, { filterNonChat, costMultiplier })
         logger.info('Loaded models.dev data', {
           provider: providerName,
           endpoint: modelInfoEndpoint,
           count: modelsDevCache.size,
         })
+
+        const overrideEnricher = await loadModelsDevOverrideEnricher(
+          modelInfoOverrideEndpoint,
+          { filterNonChat, costMultiplier },
+          providerName,
+          logger
+        )
+        modelInfoEnricher = composeEnrichers(modelInfoEnricher, overrideEnricher)
+      } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.Realseek) {
+        const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_REALSEEK_URL
+        const realseekData = await fetchRealseekData(modelInfoEndpoint)
+        modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, realseekData, { filterNonChat, costMultiplier })
+        logger.info('Loaded realseek model data', {
+          provider: providerName,
+          endpoint: modelInfoEndpoint,
+          costMultiplier,
+        })
+
+        const overrideEnricher = await loadModelsDevOverrideEnricher(
+          modelInfoOverrideEndpoint,
+          { filterNonChat, costMultiplier },
+          providerName,
+          logger
+        )
+        modelInfoEnricher = composeEnrichers(modelInfoEnricher, overrideEnricher)
       } else if (!usingPersistedModels && (modelInfoFormat === ModelInfoFormat.Bifrost || modelInfoFormat === ModelInfoFormat.LlamaSwap || modelInfoFormat === ModelInfoFormat.OmniRoute || modelInfoFormat === ModelInfoFormat.VLLM)) {
         modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, null)
       } else if (!usingPersistedModels && modelInfoFormat === ModelInfoFormat.LMStudio) {
@@ -324,7 +398,7 @@ export async function enhanceConfig(
         const modelInfoEndpoint = providerDiscoveryConfig.modelInfoEndpoint ?? DEFAULT_LITELLM_MODEL_INFO_ENDPOINT
         const modelInfoDiscovery = await discoverModelInfoFromProvider(baseURL, apiKey, modelInfoEndpoint, timeoutMs)
         if (modelInfoDiscovery.ok) {
-          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat })
+          modelInfoEnricher = createModelInfoEnricher(modelInfoFormat, modelInfoDiscovery.data, { filterNonChat, costMultiplier })
         } else {
           logger.warn('Provider model info discovery failed', {
             provider: providerName,

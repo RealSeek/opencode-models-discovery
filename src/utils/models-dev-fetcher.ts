@@ -1,3 +1,8 @@
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { fetchJsonWithIPv4Fallback } from './http-json'
+
 export interface ModelsDevModel {
   id: string
   name?: string
@@ -6,6 +11,9 @@ export interface ModelsDevModel {
   tool_call?: boolean
   structured_output?: boolean
   temperature?: boolean
+  interleaved?: true | {
+    field: 'reasoning' | 'reasoning_content' | 'reasoning_details'
+  }
   modalities?: {
     input?: string[]
     output?: string[]
@@ -15,13 +23,32 @@ export interface ModelsDevModel {
     input?: number
     output?: number
   }
+  variants?: Record<string, Record<string, unknown>>
 }
 
 export const DEFAULT_MODELS_DEV_URL = 'https://models.dev/models.json'
 const PREFIX_MATCH_MIN_SCORE = 70
 const PREFIX_MATCH_MIN_SHARED_PARTS = 2
+const DEFAULT_SOURCE_TIMEOUT_MS = 5000
+const CUSTOM_SOURCE_TIMEOUT_MS = 10000
 
 const modelsDevCaches = new Map<string, Map<string, ModelsDevModel>>()
+
+function isHttpSource(source: string): boolean {
+  return source.startsWith('http://') || source.startsWith('https://')
+}
+
+async function readModelsDevSource(source: string): Promise<unknown> {
+  if (isHttpSource(source)) {
+    const timeoutMs = source === DEFAULT_MODELS_DEV_URL ? DEFAULT_SOURCE_TIMEOUT_MS : CUSTOM_SOURCE_TIMEOUT_MS
+    return fetchJsonWithIPv4Fallback(source, timeoutMs)
+  }
+
+  const filePath = source.startsWith('file:')
+    ? fileURLToPath(source)
+    : path.resolve(source)
+  return JSON.parse(await readFile(filePath, 'utf8'))
+}
 
 function isObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,6 +73,11 @@ function addModel(cache: Map<string, ModelsDevModel>, providerId: string | undef
     tool_call: typeof rawModel.tool_call === 'boolean' ? rawModel.tool_call : undefined,
     structured_output: typeof rawModel.structured_output === 'boolean' ? rawModel.structured_output : undefined,
     temperature: typeof rawModel.temperature === 'boolean' ? rawModel.temperature : undefined,
+    interleaved: rawModel.interleaved === true
+      ? true
+      : isObject(rawModel.interleaved) && ['reasoning', 'reasoning_content', 'reasoning_details'].includes(rawModel.interleaved.field)
+        ? { field: rawModel.interleaved.field }
+        : undefined,
     modalities: isObject(rawModel.modalities) ? {
       input: Array.isArray(rawModel.modalities.input) ? rawModel.modalities.input.filter((item: unknown): item is string => typeof item === 'string') : undefined,
       output: Array.isArray(rawModel.modalities.output) ? rawModel.modalities.output.filter((item: unknown): item is string => typeof item === 'string') : undefined,
@@ -55,6 +87,9 @@ function addModel(cache: Map<string, ModelsDevModel>, providerId: string | undef
       input: typeof rawModel.limit.input === 'number' ? rawModel.limit.input : undefined,
       output: typeof rawModel.limit.output === 'number' ? rawModel.limit.output : undefined,
     } : undefined,
+    variants: isObject(rawModel.variants)
+      ? Object.fromEntries(Object.entries(rawModel.variants).filter((entry): entry is [string, Record<string, unknown>] => isObject(entry[1])))
+      : undefined,
   })
 }
 
@@ -85,23 +120,19 @@ function parseModelsDevData(data: unknown): Map<string, ModelsDevModel> {
   return cache
 }
 
-export async function fetchModelsDevData(url: string = DEFAULT_MODELS_DEV_URL): Promise<Map<string, ModelsDevModel>> {
-  const cached = modelsDevCaches.get(url)
+export async function fetchModelsDevData(source: string = DEFAULT_MODELS_DEV_URL): Promise<Map<string, ModelsDevModel>> {
+  const cached = modelsDevCaches.get(source)
   if (cached) return cached
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      signal: AbortSignal.timeout(3000),
-    })
-
-    if (!response.ok) {
+    const data = await readModelsDevSource(source)
+    if (data === undefined) {
       return new Map()
     }
 
-    const models = parseModelsDevData(await response.json())
-    modelsDevCaches.set(url, models)
-    return models
+    const parsed = parseModelsDevData(data)
+    modelsDevCaches.set(source, parsed)
+    return parsed
   } catch {
     return new Map()
   }

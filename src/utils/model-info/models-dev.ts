@@ -10,13 +10,19 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
 
   const contextLimit = hasUsableNumber(info.limit?.context) ? info.limit.context : info.limit?.input
   const outputLimit = info.limit?.output
-  if (hasUsableNumber(contextLimit)) {
-    // OpenCode requires both fields when a limit object is present. Zero preserves
-    // its output-token fallback when models.dev has no output limit.
+  const hadLimit = modelConfig.limit !== undefined
+  if (hasUsableNumber(contextLimit) || hasUsableNumber(outputLimit)) {
     modelConfig.limit = {
-      context: contextLimit,
+      ...modelConfig.limit,
+      ...(hasUsableNumber(contextLimit) ? { context: contextLimit } : {}),
       ...(hasUsableNumber(info.limit?.input) ? { input: info.limit.input } : {}),
-      output: hasUsableNumber(outputLimit) ? outputLimit : 0,
+      ...(hasUsableNumber(outputLimit) ? { output: outputLimit } : {}),
+    }
+    // OpenCode requires output when a limit object is first introduced. Zero
+    // preserves its output-token fallback; partial overrides that only update
+    // output leave the base value untouched instead.
+    if (!hadLimit && !hasUsableNumber(outputLimit)) {
+      modelConfig.limit.output = 0
     }
   }
 
@@ -25,11 +31,23 @@ function applyModelsDevModelInfo(modelConfig: any, info: ModelsDevModel | undefi
   if (typeof info.tool_call === 'boolean') modelConfig.tool_call = info.tool_call
   if (typeof info.structured_output === 'boolean') modelConfig.structured_output = info.structured_output
   if (typeof info.temperature === 'boolean') modelConfig.temperature = info.temperature
+  if (info.interleaved !== undefined) modelConfig.interleaved = info.interleaved
   if (info.modalities?.input?.length || info.modalities?.output?.length) {
     modelConfig.modalities = {
+      ...modelConfig.modalities,
       ...(info.modalities.input?.length ? { input: info.modalities.input } : {}),
       ...(info.modalities.output?.length ? { output: info.modalities.output } : {}),
     }
+  }
+  if (info.variants && Object.keys(info.variants).length > 0) {
+    const variants: Record<string, Record<string, unknown>> = { ...(modelConfig.variants ?? {}) }
+    for (const [name, options] of Object.entries(info.variants)) {
+      variants[name] = {
+        ...(variants[name] ?? {}),
+        ...options,
+      }
+    }
+    modelConfig.variants = variants
   }
 }
 

@@ -36,6 +36,7 @@ export function validateConfig(config: any): ValidationResult {
         validateDiscoveryEndpoint(providerName, discoveryConfig.endpoint, errors)
         validateTimeoutMs(providerName, discoveryConfig.timeoutMs, errors)
         validateCache(providerName, discoveryConfig.cache, errors)
+        validateCostMultiplier(providerName, discoveryConfig.costMultiplier, errors)
       }
     }
   }
@@ -85,6 +86,16 @@ function validateCache(providerName: string, value: unknown, errors: string[]): 
   if (cache.ttlSeconds !== undefined &&
     (typeof cache.ttlSeconds !== 'number' || !Number.isFinite(cache.ttlSeconds) || cache.ttlSeconds < 0)) {
     errors.push(`Provider '${providerName}' modelsDiscovery.cache.ttlSeconds must be a non-negative finite number`)
+  }
+}
+
+function validateCostMultiplier(providerName: string, value: unknown, errors: string[]): void {
+  if (value === undefined) {
+    return
+  }
+
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    errors.push(`Provider '${providerName}' modelsDiscovery.costMultiplier must be a non-negative finite number`)
   }
 }
 

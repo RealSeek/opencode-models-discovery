@@ -5,6 +5,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { ModelDiscoveryPlugin } from '../src/index.ts'
 import { modelsDevTestUtils } from '../src/utils/models-dev-fetcher.ts'
+import { realseekTestUtils } from '../src/utils/realseek-fetcher.ts'
 import { providerModelStoreTestUtils } from '../src/plugin/enhance-config.ts'
 import { ProviderModelStore } from '../src/plugin/provider-model-store.ts'
 
@@ -70,6 +71,7 @@ describe('ModelDiscovery Plugin', () => {
   beforeEach(async () => {
     mockFetch.mockClear()
     modelsDevTestUtils.resetCache()
+    realseekTestUtils.resetCache()
     delete process.env.OPENCODE_AUTH_CONTENT
     delete process.env.OPENCODE
     delete process.env.OPENCODE_PID
@@ -841,6 +843,45 @@ describe('ModelDiscovery Plugin', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1)
     })
 
+    it('should wait until model discovery completes', async () => {
+      let resolveFetch: ((response: any) => void) | undefined
+      mockFetch.mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFetch = resolve
+      }))
+      const config: any = {
+        provider: {
+          slow: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              apiKey: 'test-key',
+              baseURL: 'https://slow.example/v1',
+              modelsDiscovery: { enabled: true }
+            },
+            models: {}
+          }
+        }
+      }
+
+      let completed = false
+      const configPromise = pluginHooks.config(config).then(() => {
+        completed = true
+      })
+
+      await Promise.resolve()
+      expect(completed).toBe(false)
+
+      resolveFetch?.({
+        ok: true,
+        json: async () => ({
+          data: [{ id: 'eventually-loaded-model', object: 'model', owned_by: 'test' }]
+        })
+      })
+      await configPromise
+
+      expect(completed).toBe(true)
+      expect(config.provider.slow.models['eventually-loaded-model']).toBeDefined()
+    })
+
     it('should use resolved provider key from OpenCode auth when options.apiKey is absent', async () => {
       mockClient.config.providers.mockResolvedValueOnce({
         data: {
@@ -1065,7 +1106,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/opencode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]opencode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['host-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
@@ -1106,7 +1147,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/opencode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]opencode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['default-host-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
@@ -1150,7 +1191,7 @@ describe('ModelDiscovery Plugin', () => {
 
       await pluginHooks.config(config)
 
-      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/\/mimocode\/auth\.json$/), 'utf8')
+      expect(readFileSpy).toHaveBeenCalledWith(expect.stringMatching(/[\\/]mimocode[\\/]auth\.json$/), 'utf8')
       expect(config.provider.test_provider.models['mimo-auth-model']).toBeDefined()
       expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:4000/v1/models', expect.objectContaining({
         method: 'GET',
@@ -1432,6 +1473,230 @@ describe('ModelDiscovery Plugin', () => {
         name: 'GPT-4o',
         tool_call: true,
         limit: { context: 128000, output: 0 }
+      }))
+    })
+
+    it('should load Realseek prices and apply a provider cost multiplier', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'gpt-5.6-sol', object: 'model', created: 1234567890, owned_by: 'openai' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            models: [{
+              slug: 'openai/gpt-5.6-sol',
+              model_name: 'gpt-5.6-sol',
+              display_name: 'GPT-5.6 Sol',
+              max_input_tokens: 1050000,
+              max_output_tokens: 128000,
+              modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+              capabilities: { vision: true, reasoning: true, function_calling: true },
+              pricing: [{
+                provider: 'openai',
+                official: true,
+                charges: {
+                  prompt: { unit: 'per_M_tokens', price: '5' },
+                  completion: { unit: 'per_M_tokens', price: '30' },
+                  cache_read: { unit: 'per_M_tokens', price: '0.5' },
+                  cache_write: { unit: 'per_M_tokens', price: '6.25' }
+                }
+              }]
+            }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'gpt-5.6-sol': {
+              variants: {
+                none: { reasoningEffort: 'none' },
+                ultra: { reasoningEffort: 'ultra' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'https://example.com/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'realseek',
+                costMultiplier: 2.5,
+                modelInfoOverrideEndpoint: 'https://example.com/model-corrections.json'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://cch-plus.com/pricing/v1/models.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(mockFetch).toHaveBeenNthCalledWith(3, 'https://example.com/model-corrections.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['gpt-5.6-sol']).toEqual(expect.objectContaining({
+        attachment: true,
+        reasoning: true,
+        tool_call: true,
+        limit: { context: 1050000, input: 1050000, output: 128000 },
+        cost: {
+          input: 12.5,
+          output: 75,
+          cache_read: 1.25,
+          cache_write: 15.625
+        },
+        variants: {
+          none: { reasoningEffort: 'none' },
+          ultra: { reasoningEffort: 'ultra' }
+        }
+      }))
+    })
+
+    it('should load a user-maintained models.dev-compatible endpoint', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'vendor/new-vision-model', object: 'model', owned_by: 'vendor' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-vision-model': {
+              attachment: true,
+              reasoning: true,
+              modalities: { input: ['text', 'image'], output: ['text'] },
+              variants: {
+                low: { reasoningEffort: 'low' },
+                high: { reasoningEffort: 'high' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev',
+                modelInfoEndpoint: 'https://example.com/my-models.json'
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(2, 'https://example.com/my-models.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['vendor/new-vision-model']).toEqual(expect.objectContaining({
+        attachment: true,
+        reasoning: true,
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        variants: {
+          low: { reasoningEffort: 'low' },
+          high: { reasoningEffort: 'high' }
+        }
+      }))
+    })
+
+    it('should overlay partial models.dev corrections on base metadata', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'vendor/new-model', object: 'model', owned_by: 'vendor' }]
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-model': {
+              name: 'Base Name',
+              attachment: false,
+              reasoning: true,
+              tool_call: true,
+              modalities: { input: ['text'], output: ['text'] },
+              limit: { context: 200000, input: 180000, output: 32000 },
+              variants: {
+                low: { reasoningEffort: 'low', reasoningSummary: 'auto' },
+                medium: { reasoningEffort: 'medium' }
+              }
+            }
+          })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            'vendor/new-model': {
+              name: 'Corrected Name',
+              attachment: true,
+              tool_call: false,
+              interleaved: { field: 'reasoning_content' },
+              modalities: { input: ['text', 'image'] },
+              limit: { output: 64000 },
+              variants: {
+                low: { reasoningSummary: 'detailed' },
+                high: { reasoningEffort: 'high' }
+              }
+            }
+          })
+        })
+
+      const config: any = {
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: {
+              baseURL: 'http://127.0.0.1:9000/v1',
+              modelsDiscovery: {
+                modelInfoFormat: 'models.dev',
+                modelInfoEndpoint: 'https://example.com/base-models.json',
+                modelInfoOverrideEndpoint: 'https://example.com/model-corrections.json',
+                smartModelName: true
+              }
+            },
+            models: {}
+          }
+        }
+      }
+
+      await pluginHooks.config(config)
+
+      expect(mockFetch).toHaveBeenNthCalledWith(3, 'https://example.com/model-corrections.json', expect.objectContaining({
+        method: 'GET'
+      }))
+      expect(config.provider.custom.models['vendor/new-model']).toEqual(expect.objectContaining({
+        name: 'Corrected Name',
+        attachment: true,
+        reasoning: true,
+        tool_call: false,
+        interleaved: { field: 'reasoning_content' },
+        modalities: { input: ['text', 'image'], output: ['text'] },
+        limit: { context: 200000, input: 180000, output: 64000 },
+        variants: {
+          low: { reasoningEffort: 'low', reasoningSummary: 'detailed' },
+          medium: { reasoningEffort: 'medium' },
+          high: { reasoningEffort: 'high' }
+        }
       }))
     })
 

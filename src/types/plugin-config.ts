@@ -33,6 +33,7 @@ export enum ModelInfoFormat {
   Bifrost = 'bifrost',
   LiteLLM = 'litellm',
   ModelsDev = 'models.dev',
+  Realseek = 'realseek',
   VLLM = 'vllm',
   LMStudio = 'lmstudio',
   LlamaSwap = 'llama-swap',
@@ -51,7 +52,9 @@ export interface ProviderDiscoveryConfig {
   endpoint?: string
   timeoutMs?: number
   modelInfoEndpoint?: string
+  modelInfoOverrideEndpoint?: string
   modelInfoFormat?: ModelInfoFormat
+  costMultiplier?: number
   filterNonChat?: boolean
   models?: {
     includeRegex?: string[]

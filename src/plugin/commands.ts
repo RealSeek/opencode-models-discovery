@@ -112,13 +112,16 @@ Explain the mechanism to the user:
 Supported plugin options under provider.<id>.options.modelsDiscovery:
 - enabled: force enable or disable discovery for this provider
 - endpoint: provider-specific models endpoint as an origin-relative path beginning with /; it always uses the provider base URL origin and defaults to /v1/models
-- modelInfoEndpoint: override the metadata endpoint; accepts either an origin-relative path or a complete URL for "litellm" and "lmstudio", while "models.dev" requires a complete models.json URL
+- modelInfoEndpoint: override the metadata endpoint; accepts either an origin-relative path or a complete URL for "litellm" and "lmstudio", while "models.dev" and "realseek" accept a complete URL, file:// URL, or local file path
 - models.includeRegex: shortcut for model id regex allow-list; prefer models.includeBy with field="id" and match for new config
 - models.excludeRegex: shortcut for model id regex deny-list; prefer models.excludeBy with field="id" and match for new config
 - models.includeBy: allow-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - models.excludeBy: deny-list for top-level raw fields returned in the provider's /v1/models response; each rule uses exactly one of equals or match
 - smartModelName: use friendlier display names for discovered models
 - modelInfoFormat="models.dev": enrich from the public models.dev index; modelInfoEndpoint optionally overrides the complete models.json URL
+- modelInfoFormat="realseek": enrich from https://cch-plus.com/pricing/v1/models.json, including model prices; modelInfoEndpoint optionally overrides the URL
+- costMultiplier: multiply Realseek input, output, cache-read, and cache-write prices for a third-party provider group; defaults to 1
+- modelInfoOverrideEndpoint plus modelInfoFormat="models.dev" or "realseek": overlay a small user-maintained models.dev-compatible correction file on the base metadata
 - modelInfoFormat="bifrost": read Bifrost's documented inline /v1/models limits, modalities, and base pricing without another request
 - modelInfoFormat="litellm": enrich from a LiteLLM-compatible /v1/model/info endpoint; modelInfoEndpoint optionally overrides the path
 - modelInfoFormat="vllm": for vLLM-compatible providers whose raw /v1/models entries include a positive numeric max_model_len; without another request, sets limit.context and limit.output for matching discovered models
@@ -145,6 +148,8 @@ Recommended defaults:
 - avoid configuring both includeBy field="id" match rules and includeRegex unless the user wants an intersection with legacy id-only shortcut behavior
 - use smartModelName=true only when the user wants friendlier display names
 - use modelInfoFormat="models.dev" for models.dev metadata enrichment; set modelInfoEndpoint to a complete mirror or proxy URL only when needed
+- use modelInfoFormat="realseek" for Realseek pricing and model metadata; set costMultiplier to the manually maintained New-API or Sub2API group multiplier when needed
+- use modelInfoOverrideEndpoint with modelInfoFormat="models.dev" or "realseek" for partial capability and reasoning corrections that take precedence over the base metadata
 - use modelInfoFormat="bifrost" only for Bifrost /v1/models responses; it is an explicit inline-metadata format and does not make another request
 - use modelInfoFormat="litellm" for LiteLLM-compatible /v1/model/info; set modelInfoEndpoint only when the provider uses another path
 - use modelInfoFormat="vllm" only when the provider's /v1/models response exposes max_model_len; it is not a standard OpenAI-compatible field, does not require modelInfoEndpoint, and does not infer other capabilities

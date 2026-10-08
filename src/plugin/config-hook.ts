@@ -8,16 +8,13 @@ import type { PluginLogger } from './logger'
 import type { PluginInput } from '@opencode-ai/plugin'
 import type { PluginConfig } from '../types/plugin-config'
 
-export const DEFAULT_CONFIG_HOOK_TIMEOUT_MS = 5000
-
-export function getConfigHookTimeoutMs(config: any, logger: PluginLogger): number {
+export function getConfigHookTimeoutMs(config: any, logger: PluginLogger): number | undefined {
   const providerTimeouts = Object.values(config?.provider ?? {})
     .map((provider: any) => provider?.options?.modelsDiscovery?.timeoutMs)
     .filter((timeoutMs): timeoutMs is number => typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0)
-  const providerTimeoutMs = providerTimeouts.length > 0 ? Math.max(...providerTimeouts) : undefined
-  const timeoutMs = Math.max(DEFAULT_CONFIG_HOOK_TIMEOUT_MS, providerTimeoutMs ?? 0)
+  const timeoutMs = providerTimeouts.length > 0 ? Math.max(...providerTimeouts) : undefined
 
-  logger.debug('Using config hook timeout', { timeoutMs, providerTimeoutMs })
+  logger.debug('Using config hook timeout', { timeoutMs })
   return timeoutMs
 }
 
@@ -62,12 +59,25 @@ export function createConfigHook(
     const timeoutMs = getConfigHookTimeoutMs(config, logger)
 
     try {
-      await Promise.race([
-        discoveryPromise,
-        new Promise<void>((resolve) => {
-          setTimeout(() => resolve(), timeoutMs)
-        })
-      ])
+      if (timeoutMs === undefined) {
+        // Wait for discovery to complete by default; only providers with an
+        // explicit modelsDiscovery.timeoutMs opt into a bounded wait.
+        await discoveryPromise
+      } else {
+        let timedOut = false
+        await Promise.race([
+          discoveryPromise,
+          new Promise<void>((resolve) => {
+            setTimeout(() => {
+              timedOut = true
+              resolve()
+            }, timeoutMs)
+          })
+        ])
+        if (timedOut) {
+          logger.warn('Config enhancement did not finish within the configured timeout; models may be incomplete', { timeoutMs })
+        }
+      }
     } catch (error) {
       logger.error('Config enhancement failed', {
         error: error instanceof Error ? error.message : String(error),

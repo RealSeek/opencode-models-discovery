@@ -79,8 +79,10 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 | `provider.<name>.options.modelsDiscovery.enabled` | `boolean` | Force enable or disable discovery for a single provider |
 | `provider.<name>.options.modelsDiscovery.endpoint` | `string` | Provider-specific models endpoint as an origin-relative path beginning with `/`. Defaults to `/v1/models` |
 | `provider.<name>.options.modelsDiscovery.timeoutMs` | positive finite `number` | Per-request timeout for the provider's models and provider-specific metadata endpoints. Defaults to `3000` |
-| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"` |
-| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
+| `provider.<name>.options.modelsDiscovery.modelInfoEndpoint` | `string` | Override a format-specific metadata endpoint as an origin-relative path or complete URL. Defaults to `/v1/model/info` for `"litellm"` and `/api/v1/models` for `"lmstudio"`. For `"models.dev"` and `"realseek"`, accepts HTTP(S), `file://`, or a local file path |
+| `provider.<name>.options.modelsDiscovery.modelInfoOverrideEndpoint` | `string` | Optional models.dev-compatible correction source applied after the base `"models.dev"` or `"realseek"` metadata; accepts HTTP(S), `file://`, or a local file path |
+| `provider.<name>.options.modelsDiscovery.modelInfoFormat` | `string` | Model info response format. Currently supports `"bifrost"`, `"litellm"`, `"models.dev"`, `"realseek"`, `"vllm"`, `"lmstudio"`, `"llama-swap"`, and `"omniroute"` |
+| `provider.<name>.options.modelsDiscovery.costMultiplier` | non-negative finite `number` | Multiplies Realseek input, output, cache-read, and cache-write prices for a third-party provider group. Defaults to `1` |
 | `provider.<name>.options.modelsDiscovery.filterNonChat` | `boolean` | When model info is available, skip models whose `model_info.mode` is not `chat`. Defaults to `true` |
 | `provider.<name>.options.modelsDiscovery.models.includeRegex` | `string[]` | Shortcut regex allow-list for discovered model ids only |
 | `provider.<name>.options.modelsDiscovery.models.excludeRegex` | `string[]` | Shortcut regex deny-list for discovered model ids only |
@@ -284,13 +286,14 @@ Community provider examples live in [`docs/config_example/`](config_example/).
 
 The generic OpenAI-compatible `/v1/models` endpoint only guarantees a small model list shape. Extra metadata such as context limits, tool calling, reasoning, image input, or structured output is provider-specific, so metadata enrichment is opt-in.
 
-The plugin currently supports seven model info formats:
+The plugin currently supports eight model info formats:
 
 | Format | Source | Requires `modelInfoEndpoint` | Notes |
 |--------|--------|------------------------------|-------|
 | `"bifrost"` | Fields in Bifrost's `/v1/models` response | No | Reads Bifrost inline limits, modalities, and base pricing when present |
 | `"litellm"` | Provider-specific model info endpoint | No | Uses `/v1/model/info` by default; set `modelInfoEndpoint` to override it |
-| `"models.dev"` | `https://models.dev/models.json` | No | Uses the public models.dev metadata index |
+| `"models.dev"` | `https://models.dev/models.json` or a custom source | No | Uses the public models.dev metadata index; `modelInfoEndpoint` may point to an HTTP(S) mirror, `file://` URL, or local file |
+| `"realseek"` | `https://cch-plus.com/pricing/v1/models.json` or a custom URL | No | Uses Realseek pricing and model metadata; `costMultiplier` scales prices for third-party provider groups |
 | `"vllm"` | Fields in the provider's `/v1/models` response | No | Reads vLLM-style `max_model_len` when present |
 | `"lmstudio"` | LM Studio 0.4.0+ `/api/v1/models` inventory | No | Uses `/api/v1/models` by default; set `modelInfoEndpoint` for another path |
 | `"llama-swap"` | Fields in llama-swap's `/v1/models` response | No | Reads inline context, modalities, and function-calling metadata when present |
@@ -480,7 +483,7 @@ Use `modelInfoFormat: "models.dev"` to enrich discovered models from the public 
 
 This project is not affiliated with, endorsed by, or sponsored by [models.dev](https://models.dev/).
 
-This does not require `modelInfoEndpoint`, because the source is fixed to `https://models.dev/models.json`:
+This does not require `modelInfoEndpoint`, because the source defaults to `https://models.dev/models.json`:
 
 ```json
 {
@@ -512,8 +515,10 @@ When a discovered model can be matched to models.dev metadata, the plugin may po
 - `structured_output`
 - `temperature`
 - `modalities`
+- `interleaved`
+- `variants`
 
-The current models.dev data uses a flat `provider/model`-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`. The current models.dev dataset does not provide `variants` metadata.
+The current models.dev data uses a flat `provider/model`-keyed object. Its `limit` object is singular, and its `context`, `input`, and `output` fields are independently optional. `structured_output` and `temperature` may also be omitted; the plugin leaves omitted fields unset rather than inferring `false`. `variants` are merged per variant name, so a partial correction can adjust a single variant option without redefining the others.
 
 Matching is intentionally conservative:
 
@@ -524,6 +529,57 @@ Matching is intentionally conservative:
 If models.dev cannot be fetched, or if no safe match is found, discovery still succeeds and the plugin leaves metadata fields unset. It does not inject hardcoded default context or output limits for unknown models.
 
 Because this option makes a public network request to models.dev during discovery, it is disabled unless explicitly configured.
+
+Set `modelInfoEndpoint` to a complete HTTP(S) URL, a `file://` URL, or a local file path to replace the public index with a mirror or a self-maintained models.dev-compatible dataset.
+
+### models.dev Overrides
+
+When most of the base metadata is correct, keep it as the base and provide only the incorrect fields through `modelInfoOverrideEndpoint`. The override source is models.dev-compatible and is applied after the base metadata, so partial corrections take precedence without redefining the whole model entry:
+
+```json
+{
+  "provider": {
+    "custom": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://example.com/v1",
+        "modelsDiscovery": {
+          "modelInfoFormat": "models.dev",
+          "modelInfoOverrideEndpoint": "https://example.com/model-corrections.json"
+        }
+      }
+    }
+  }
+}
+```
+
+`modelInfoOverrideEndpoint` accepts HTTP(S) URLs, `file://` URLs, and local file paths. It also works together with `modelInfoEndpoint`: the latter replaces the public models.dev base, while the former overlays partial corrections on that custom base. Display names prefer the override; `limit`, `modalities`, and `variants` are merged field by field.
+
+### Realseek Pricing Metadata
+
+Use `modelInfoFormat: "realseek"` to load the Realseek pricing table. Without `modelInfoEndpoint`, the plugin uses `https://cch-plus.com/pricing/v1/models.json`; set `modelInfoEndpoint` to a complete URL to use a mirror. Realseek metadata populates limits, modalities, capabilities, and per-token `cost` (`input`, `output`, `cache_read`, `cache_write`).
+
+For New-API or Sub2API-style group pricing, set the provider's `costMultiplier` manually. For example, a model with a base price of `$5` input / `$30` output per million tokens produces `$12.5` / `$75` with `costMultiplier: 2.5`:
+
+```json
+{
+  "provider": {
+    "custom": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://example.com/v1",
+        "modelsDiscovery": {
+          "modelInfoFormat": "realseek",
+          "costMultiplier": 2.5,
+          "modelInfoOverrideEndpoint": "https://example.com/model-corrections.json"
+        }
+      }
+    }
+  }
+}
+```
+
+`modelInfoOverrideEndpoint` works for `"realseek"` too: the models.dev-compatible corrections are applied after the Realseek metadata.
 
 For providers with custom metadata paths or non-standard behavior:
 
