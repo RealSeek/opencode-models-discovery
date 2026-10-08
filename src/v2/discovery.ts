@@ -4,6 +4,7 @@ import { mapToDiscoveredV2Model, type RawOpenAIModel } from "./model-mapper.js"
 import { createModelInfoEnricher, type ModelInfoEnricher } from "../utils/model-info/index.js"
 import { ModelInfoFormat } from "../types/plugin-config.js"
 import { fetchModelsDevData, DEFAULT_MODELS_DEV_URL } from "../utils/models-dev-fetcher.js"
+import { fetchRealseekData, DEFAULT_REALSEEK_URL } from "../utils/realseek-fetcher.js"
 import { disambiguateModelNames } from "../utils/disambiguate-model-names.js"
 
 export interface CatalogProvider extends ConfiguredProvider {
@@ -27,6 +28,43 @@ function included(model: RawOpenAIModel, config: ProviderDiscoveryOptions): bool
 const DEFAULT_LITELLM_ENDPOINT = "/v1/model/info"
 const DEFAULT_LMSTUDIO_ENDPOINT = "/api/v1/models"
 
+/**
+ * Overlay a models.dev-compatible override enricher on the base enricher.
+ * The override wins for display names and is applied after the base so partial
+ * field corrections take precedence; a model is skipped when either rejects it.
+ */
+function composeEnrichers(
+  baseEnricher: ModelInfoEnricher | undefined,
+  overrideEnricher: ModelInfoEnricher | undefined,
+): ModelInfoEnricher | undefined {
+  if (!baseEnricher) return overrideEnricher
+  if (!overrideEnricher) return baseEnricher
+
+  return {
+    shouldSkipModel(modelId: string): boolean {
+      return baseEnricher.shouldSkipModel(modelId) || overrideEnricher.shouldSkipModel(modelId)
+    },
+    getModelName(modelId: string, rawModel?: Record<string, unknown>): string | undefined {
+      return overrideEnricher.getModelName?.(modelId, rawModel) ?? baseEnricher.getModelName?.(modelId, rawModel)
+    },
+    applyModelInfo(modelConfig: any, modelId: string, rawModel?: Record<string, unknown>): void {
+      baseEnricher.applyModelInfo(modelConfig, modelId, rawModel)
+      overrideEnricher.applyModelInfo(modelConfig, modelId, rawModel)
+    },
+  }
+}
+
+async function loadOverrideEnricher(
+  config: ProviderDiscoveryOptions,
+): Promise<ModelInfoEnricher | undefined> {
+  if (!config.modelInfoOverrideEndpoint) return undefined
+  const overrides = await fetchModelsDevData(config.modelInfoOverrideEndpoint)
+  return createModelInfoEnricher(ModelInfoFormat.ModelsDev, overrides, {
+    filterNonChat: config.filterNonChat,
+    costMultiplier: config.costMultiplier,
+  })
+}
+
 async function resolveModelInfoEnricher(
   baseURL: string,
   apiKey: string | undefined,
@@ -39,7 +77,21 @@ async function resolveModelInfoEnricher(
   if (format === ModelInfoFormat.ModelsDev) {
     const endpoint = config.modelInfoEndpoint ?? DEFAULT_MODELS_DEV_URL
     const data = await fetchModelsDevData(endpoint)
-    return createModelInfoEnricher(format, data, { filterNonChat: config.filterNonChat })
+    const base = createModelInfoEnricher(format, data, {
+      filterNonChat: config.filterNonChat,
+      costMultiplier: config.costMultiplier,
+    })
+    return composeEnrichers(base, await loadOverrideEnricher(config))
+  }
+
+  if (format === ModelInfoFormat.Realseek) {
+    const endpoint = config.modelInfoEndpoint ?? DEFAULT_REALSEEK_URL
+    const data = await fetchRealseekData(endpoint)
+    const base = createModelInfoEnricher(format, data, {
+      filterNonChat: config.filterNonChat,
+      costMultiplier: config.costMultiplier,
+    })
+    return composeEnrichers(base, await loadOverrideEnricher(config))
   }
 
   if (

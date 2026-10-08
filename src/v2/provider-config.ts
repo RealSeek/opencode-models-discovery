@@ -17,6 +17,8 @@ export interface ProviderDiscoveryOptions {
   readonly smartModelName: boolean
   readonly modelInfoFormat?: ModelInfoFormat
   readonly modelInfoEndpoint?: string
+  readonly modelInfoOverrideEndpoint?: string
+  readonly costMultiplier: number
   readonly filterNonChat: boolean
 }
 
@@ -77,6 +79,12 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
   const modelInfoEndpoint = typeof value.modelInfoEndpoint === "string" && value.modelInfoEndpoint.trim().length > 0
     ? value.modelInfoEndpoint.trim()
     : undefined
+  const modelInfoOverrideEndpoint = typeof value.modelInfoOverrideEndpoint === "string" && value.modelInfoOverrideEndpoint.trim().length > 0
+    ? value.modelInfoOverrideEndpoint.trim()
+    : undefined
+  const costMultiplier = typeof value.costMultiplier === "number" && Number.isFinite(value.costMultiplier) && value.costMultiplier >= 0
+    ? value.costMultiplier
+    : 1
 
   // Default filterNonChat to true when LiteLLM or ModelsDev is active, matching V1 behavior
   const filterNonChat = typeof value.filterNonChat === "boolean" ? value.filterNonChat : true
@@ -92,6 +100,8 @@ export function parseProviderDiscoveryOptions(raw: unknown): ProviderDiscoveryOp
     smartModelName: value.smartModelName === true,
     modelInfoFormat,
     modelInfoEndpoint,
+    modelInfoOverrideEndpoint,
+    costMultiplier,
     filterNonChat,
   }
 }
