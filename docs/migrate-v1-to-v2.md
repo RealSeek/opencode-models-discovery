@@ -9,7 +9,7 @@ OpenCode v2 support is currently in beta. The package contains separate adapters
 | OpenCode v1 | OpenCode v2 |
 |---|---|
 | `plugin` | `plugins` |
-| `plugin: ["opencode-models-discovery"]` | `plugins: ["opencode-models-discovery@1.6.1"]` |
+| `plugin: ["opencode-models-discovery"]` | `plugins: ["@realseek/opencode-models-discovery@1.6.1"]` |
 | `provider` | `providers` |
 | `provider.<id>.npm` | `providers.<id>.package` |
 | `provider.<id>.options` | `providers.<id>.settings` |
@@ -35,7 +35,7 @@ The V1 package commonly uses:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "gateway": {
       "npm": "@ai-sdk/openai-compatible",
@@ -64,7 +64,7 @@ The V1 package commonly uses:
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@1.6.1"
+    "@realseek/opencode-models-discovery@1.6.1"
   ],
   "providers": {
     "gateway": {

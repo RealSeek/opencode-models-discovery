@@ -14,7 +14,7 @@ OpenCode v2 uses `plugins` and `providers`. The plugin can be declared directly 
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
-    "opencode-models-discovery@1.6.1"
+    "@realseek/opencode-models-discovery@1.6.1"
   ],
   "providers": {
     "lmstudio": {
@@ -52,7 +52,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -94,7 +94,7 @@ Each provider can configure discovery behavior through `provider.<name>.options.
 
 Recommended approach:
 
-1. Keep the plugin entry simple: `"plugin": ["opencode-models-discovery"]`.
+1. Keep the plugin entry simple: `"plugin": ["@realseek/opencode-models-discovery"]`.
 2. Put endpoint, enablement, and model filtering rules on each provider.
 3. Use `modelsDiscovery.endpoint` whenever a provider does not follow the usual `/v1/models` convention.
 4. Use OpenCode `/connect` credentials or `provider.<name>.options.apiKey` for secrets; do not duplicate API keys unless needed.
@@ -305,7 +305,7 @@ Use `modelInfoFormat: "llama-swap"` for a [llama-swap](https://github.com/mostly
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "llama-swap": {
       "npm": "@ai-sdk/openai-compatible",
@@ -331,7 +331,7 @@ Use `modelInfoFormat: "omniroute"` for an [OmniRoute](https://github.com/diegoso
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "omniroute": {
       "npm": "@ai-sdk/openai-compatible",
@@ -359,7 +359,7 @@ Use `modelInfoFormat: "bifrost"` for a Bifrost AI Gateway provider. It reads Bif
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "bifrost": {
       "npm": "@ai-sdk/openai-compatible",
@@ -389,7 +389,7 @@ Set `modelInfoFormat` to `"litellm"` to enable it. The plugin requests `/v1/mode
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -427,7 +427,7 @@ Use `modelInfoFormat: "vllm"` for a vLLM-compatible provider whose `/v1/models` 
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "local-vllm": {
       "npm": "@ai-sdk/openai-compatible",
@@ -455,7 +455,7 @@ Use `modelInfoFormat: "lmstudio"` with LM Studio 0.4.0+, which officially releas
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -487,7 +487,7 @@ This does not require `modelInfoEndpoint`, because the source defaults to `https
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",
@@ -607,7 +607,7 @@ For providers with custom metadata paths or non-standard behavior:
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -657,7 +657,7 @@ In this example:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",

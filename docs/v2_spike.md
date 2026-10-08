@@ -186,10 +186,10 @@ npm run test:run
 A real packed tarball (`opencode-models-discovery-1.5.5.tgz`) containing `dist/index.js` and `dist/server.js` was verified against clean, isolated test projects on both OpenCode generations:
 
 1. **OpenCode v2 (`2.0.15`)**:
-    - Configuration: `"plugins": ["opencode-models-discovery@1.6.1"]`
+    - Configuration: `"plugins": ["@realseek/opencode-models-discovery@1.6.1"]`
    - Verified: Plugin ID `opencode.models-discovery` active; `DeepSeek` OpenAI-compatible `/models` discovery executed; `deepseek-flash` and `deepseek-v4-pro` dynamically injected and visible via `/api/model`.
    - Local directory testing: `file:///path/to/dist` successfully resolves `dist/server.js` or `dist/index.js`.
 
 2. **OpenCode v1 (`1.18.32`)**:
-   - Configuration: `"plugin": ["opencode-models-discovery"]`
+   - Configuration: `"plugin": ["@realseek/opencode-models-discovery"]`
    - Verified: `opencode debug config` successfully invokes `server(input, options)`; V1 hooks executed; `models-discovery:config` custom command registered.

@@ -189,7 +189,7 @@ Implemented native v2 shape:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["opencode-models-discovery@1.6.1"],
+  "plugins": ["@realseek/opencode-models-discovery@1.6.1"],
   "providers": {
     "local": {
       "name": "Local server",

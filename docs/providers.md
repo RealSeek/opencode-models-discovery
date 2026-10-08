@@ -67,7 +67,7 @@ The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `op
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "ollama": {
       "npm": "@ai-sdk/openai-compatible",
@@ -84,7 +84,7 @@ The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `op
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "ollama-anthropic": {
       "npm": "@ai-sdk/anthropic",
@@ -101,7 +101,7 @@ The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `op
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "lmstudio": {
       "npm": "@ai-sdk/openai-compatible",
@@ -122,7 +122,7 @@ The examples below use the OpenCode v1 keys `plugin`, `provider`, `npm`, and `op
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "deepseek": {
       "npm": "@ai-sdk/openai-compatible",
@@ -144,7 +144,7 @@ For a local server or gateway that needs longer to respond, set `modelsDiscovery
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "slow-gateway": {
       "npm": "@ai-sdk/openai-compatible",
@@ -168,7 +168,7 @@ Providers that expose only a minimal OpenAI-compatible `/v1/models` response can
 
 ```json
 {
-  "plugin": ["opencode-models-discovery"],
+  "plugin": ["@realseek/opencode-models-discovery"],
   "provider": {
     "openrouter": {
       "npm": "@ai-sdk/openai-compatible",

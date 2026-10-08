@@ -1,21 +1,19 @@
 # Release Process
 
-This project uses a two-step automated release system. The Release workflow prepares a release PR from `dev`, and the Publish workflow publishes after that PR is merged to `main`.
+This fork publishes `@realseek/opencode-models-discovery` through GitHub Actions. The Publish workflow is manually triggered after a version bump and npm trusted publishing is configured.
 
 ## Quick Start
 
-1. Merge ready feature PRs into `dev`.
-2. Run the GitHub Actions `Release` workflow.
-3. Keep `source_branch` as `dev` unless intentionally releasing from another branch.
-4. Choose `patch`, `minor`, or `major`.
-5. Review and merge the generated `release/vX.Y.Z -> main` PR.
-6. The `Publish` workflow runs automatically after the release PR changes `package.json` on `main`.
-7. After publishing, sync `main` back into `dev` so the version bump is carried forward.
+1. Merge ready feature changes into `main`.
+2. Bump `package.json` and `package-lock.json` to a new version.
+3. Configure npm trusted publishing for `RealSeek/opencode-models-discovery` and `publish.yml`.
+4. Run the GitHub Actions `Publish` workflow manually.
+5. Verify the generated tag, GitHub release, and npm package.
 
 ## Branch Flow
 
 ```text
-feature branches -> dev -> release/vX.Y.Z -> main -> publish
+feature branches -> main -> publish
 ```
 
 Release branches are short-lived per-version branches. There is no long-lived `release` branch.
@@ -24,7 +22,7 @@ Release branches are short-lived per-version branches. There is no long-lived `r
 
 ### Release Workflow
 
-The Release workflow (`.github/workflows/release.yml`) is manually triggered. It checks out `dev` by default and runs:
+The Release workflow (`.github/workflows/release.yml`) is manually triggered. It checks out `main` by default and runs:
 
 ```bash
 bun scripts/release.ts prepare <patch|minor|major>
@@ -41,7 +39,7 @@ It will:
 
 ### Publish Workflow
 
-The Publish workflow (`.github/workflows/publish.yml`) runs on manual dispatch or when `package.json` changes on `main`. It runs:
+The Publish workflow (`.github/workflows/publish.yml`) runs only on manual dispatch. It runs:
 
 ```bash
 bun scripts/release.ts publish
@@ -52,7 +50,7 @@ It will:
 1. Run `npm run build`.
 2. Create and push the `vX.Y.Z` git tag if it does not already exist.
 3. Create a GitHub release with generated release notes.
-4. Publish `opencode-models-discovery@X.Y.Z` to npm if that version does not already exist.
+4. Publish `@realseek/opencode-models-discovery@X.Y.Z` to npm if that version does not already exist.
 
 ## Prerequisites
 
@@ -74,9 +72,7 @@ bun scripts/release.ts prepare patch
 1. Configure npm trusted publishing for this repository.
 2. Ensure the Publish workflow has `id-token: write` permission.
 3. Run the workflow:
-   - Go to: Actions -> Release -> Run workflow
-   - Select version type (patch/minor/major)
-   - Keep source branch as `dev`
+   - Go to: Actions -> Publish -> Run workflow
    - Click "Run workflow"
 
 ## Version Types
@@ -92,7 +88,7 @@ If automation fails, complete the same two phases manually.
 ### Prepare Release PR
 
 ```bash
-git switch dev
+git switch main
 bun scripts/release.ts prepare patch
 ```
 
@@ -127,20 +123,14 @@ gh auth login
 
 The publish script detects existing npm versions and skips `npm publish`. Bump to a new version if you need another release.
 
-### dev has an old version after publishing
-
-Merge `main` back into `dev` after the release PR is merged and published.
-
 ## CI/CD Integration
 
 The normal CI/CD release path is:
 
 1. Go to Actions tab.
-2. Select `Release` workflow.
+2. Select `Publish` workflow.
 3. Click `Run workflow`.
-4. Choose version type.
-5. Keep source branch as `dev`.
-6. Merge the generated release PR into `main`.
-7. Let the `Publish` workflow publish automatically.
+4. Run Publish manually after a version bump.
+5. Verify the npm package and GitHub release.
 
-Do not run release preparation from `main` during normal development releases.
+The first public scoped-package publish uses `--access public` through `package.json.publishConfig`.
