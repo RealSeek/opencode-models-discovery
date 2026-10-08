@@ -100,9 +100,14 @@ export function mapToDiscoveredV2Model(
 
   if (isReasoning) {
     result.reasoning = true
+    // models.dev interleaved metadata names the exact reasoning field the
+    // provider expects; overrides can correct it per model.
+    const interleavedField = intermediateV1.interleaved && typeof intermediateV1.interleaved === "object"
+      ? intermediateV1.interleaved.field
+      : undefined
     result.compatibility = {
       ...result.compatibility,
-      reasoningField: "reasoning_content",
+      reasoningField: typeof interleavedField === "string" ? interleavedField : "reasoning_content",
     }
   }
 

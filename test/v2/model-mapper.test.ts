@@ -192,4 +192,24 @@ describe("V2 model-mapper", () => {
       { id: "high", settings: { reasoningEffort: "high" } },
     ])
   })
+
+  it("honors models.dev interleaved field for compatibility.reasoningField", () => {
+    const options = parseProviderDiscoveryOptions({
+      enabled: true,
+      modelInfoFormat: ModelInfoFormat.ModelsDev,
+    })!
+    const modelsDevData = new Map([
+      ["moonshotai/kimi-k3", {
+        id: "moonshotai/kimi-k3",
+        reasoning: true,
+        interleaved: { field: "reasoning" as const },
+      }],
+    ])
+    const enricher = createModelInfoEnricher(ModelInfoFormat.ModelsDev, modelsDevData, { filterNonChat: true })
+
+    const mapped = mapToDiscoveredV2Model({ id: "moonshotai/kimi-k3" }, options, enricher)
+
+    expect(mapped.reasoning).toBe(true)
+    expect(mapped.compatibility?.reasoningField).toBe("reasoning")
+  })
 })
